@@ -5,7 +5,8 @@ A reproducible DIY water-tank monitoring project using an Arduino-compatible con
 > **Project status:** Reference Build / v0.1 development. The first goal is to preserve and document the known-working installation before packaging the Home Assistant side as a HACS custom integration.
 
 ## Overview
-
+<img width="638" height="494" alt="JoJo1" src="https://github.com/user-attachments/assets/e072b129-69aa-4fcc-9ffc-0a8c6d0a755a" />
+<img width="638" height="681" alt="JoJo2" src="https://github.com/user-attachments/assets/f832b154-4fa7-4778-8eff-c5c04bddf517" />
 The reference system uses an Arduino to read raw sensor measurements and publish them to MQTT every five minutes. Home Assistant performs the tank-specific calibration and calculates water level, depth and volume.
 
 This separation is intentional: the Arduino firmware does not need to know the tank capacity or height, so the same firmware can be reused with different tanks and calibration values.
