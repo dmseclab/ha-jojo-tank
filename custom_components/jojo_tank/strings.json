@@ -1,0 +1,33 @@
+{
+  "title": "JoJo Tank Monitor",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up JoJo Tank Monitor",
+        "description": "Configure the tank and the MQTT state topic published by the Arduino Revision 6 firmware.",
+        "data": {
+          "tank_name": "Tank name",
+          "mqtt_topic": "MQTT state topic",
+          "tank_capacity": "Tank capacity (L)",
+          "tank_height": "Tank height (mm)",
+          "empty_current": "Empty sensor current (mA)",
+          "full_current": "Full sensor current (mA)",
+          "sense_resistor": "Sense resistor (ohm)"
+        },
+        "data_description": {
+          "mqtt_topic": "Default: homeassistant/sensor/jojo_tank/state",
+          "empty_current": "Measured current at the empty/minimum reference level.",
+          "full_current": "Measured current at the full reference level.",
+          "sense_resistor": "Reference build uses 120 ohm."
+        }
+      }
+    },
+    "error": {
+      "full_not_greater_than_empty": "Full current must be greater than empty current.",
+      "must_be_positive": "Value must be greater than zero."
+    },
+    "abort": {
+      "already_configured": "This MQTT tank topic is already configured."
+    }
+  }
+}
