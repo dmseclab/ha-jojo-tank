@@ -2,13 +2,13 @@
 
 A reproducible DIY water-tank monitoring project using an Arduino-compatible controller, a submersible pressure level sensor, MQTT and Home Assistant.
 
-> **Project status:** Reference Build / v0.1 development. The first goal is to preserve and document the known-working installation before packaging the Home Assistant side as a HACS custom integration.
+> **Project status:** v0.4.2 active development / pre-v1.0 validation. The HACS custom integration is operational and provides native tank calculations, diagnostics, configurable calibration, refill detection, persistent refill history and local Home Assistant branding. The current reference installation is running the integration while real-world refill behaviour is validated before the first stable release.
 
 ## Overview
 <img width="638" height="494" alt="JoJo1" src="https://github.com/user-attachments/assets/e072b129-69aa-4fcc-9ffc-0a8c6d0a755a" />
 <img width="638" height="681" alt="JoJo2" src="https://github.com/user-attachments/assets/f832b154-4fa7-4778-8eff-c5c04bddf517" />
 
-The reference system uses an Arduino to read raw sensor measurements and publish them to MQTT every five minutes. Home Assistant performs the tank-specific calibration and calculates water level, depth and volume.
+The reference system uses an Arduino to read raw sensor measurements and publish them to MQTT every five minutes. The JoJo Tank Monitor Home Assistant integration performs the tank-specific calibration and calculates water level, depth and volume.
 
 This separation is intentional: the Arduino firmware does not need to know the tank capacity or height, so the same firmware can be reused with different tanks and calibration values.
 
@@ -27,12 +27,16 @@ Arduino UNO R4 WiFi-compatible board
           |
           v
    Home Assistant
+          |
+          v
+ JoJo Tank Monitor
      |- calibration
      |- level (%)
      |- volume (L)
      |- depth (mm)
      |- refill detection
-     `- alarms/dashboard
+     |- refill history
+     `- diagnostics
 ```
 
 ## Reference Hardware
@@ -45,7 +49,7 @@ The original installation was developed around a 5,250 L JoJo water tank.
 | Level sensor | DFRobot Gravity Submersible Liquid Level / Tank Pressure Sensor (SEN0262 family) | Hydrostatic water-level measurement |
 | Sensor interface | Interface/converter supplied with the sensor | Converts/conditions the sensor signal for the controller |
 | Controller | Arduino UNO R4 WiFi-compatible board | Reads the sensor and publishes MQTT measurements |
-| Home automation | Home Assistant | Calibration, calculations, history, refill detection and dashboard |
+| Home automation | Home Assistant | Integration host, history, dashboards and automations |
 | Transport | MQTT | Transfers measurements from the Arduino to Home Assistant |
 
 ### Hardware links
@@ -69,8 +73,10 @@ The exact supplier of the controller used in the original installation is not kn
 | Arduino analog input | A2 |
 | ADC samples per reading | 20 |
 | Publish interval | 5 minutes |
+| Refill detection threshold | 75 L |
+| Refill end timeout | 15 minutes |
 
-Tank capacity, tank height and empty/full calibration belong on the Home Assistant side. They are deliberately not hard-coded into Revision 6 of the Arduino firmware.
+Tank capacity, tank height, calibration and refill settings belong on the Home Assistant integration side. They are deliberately not hard-coded into the Arduino firmware.
 
 ## Arduino Configuration
 
@@ -95,14 +101,14 @@ The Revision 6 firmware publishes raw measurements to:
 homeassistant/sensor/jojo_tank/state
 ```
 
-The Arduino publishes the raw ADC value, sensor voltage/current and diagnostic information. Tank-specific calculations remain in Home Assistant.
+The Arduino publishes the raw ADC value, sensor voltage/current and diagnostic information. Tank-specific calculations remain in the Home Assistant integration.
 
 ## Home Assistant Calculations
 
 ### Sensor current
 
 ```text
-Current (mA) = Sensor voltage (mV) / 120 ohm
+Current (mA) = Sensor voltage (mV) / sense resistor (ohm)
 ```
 
 ### Tank level
@@ -111,7 +117,7 @@ Current (mA) = Sensor voltage (mV) / 120 ohm
 Level (%) = (Current - Empty current) / (Full current - Empty current) x 100
 ```
 
-The result should be constrained to 0-100%.
+The integration constrains the result to 0-100%.
 
 ### Available volume
 
@@ -138,10 +144,10 @@ For a new installation:
 3. Fill the tank to the known full reference point.
 4. Allow the sensor reading to stabilise.
 5. Record Raw ADC, sensor voltage and calculated current.
-6. Use the measured empty and full currents as the Home Assistant calibration limits.
+6. Enter the measured empty and full currents in the JoJo Tank Monitor integration configuration.
 7. Verify calculated percentage, depth and litres against known tank levels.
 
-## Planned Repository Layout
+## Repository Layout
 
 ```text
 ha-jojo-tank/
@@ -155,24 +161,58 @@ ha-jojo-tank/
 |  `- original-ha-config/
 `- custom_components/
    `- jojo_tank/
+      |- brand/
+      `- translations/
 ```
 
-The original Home Assistant configuration will be preserved as a known-working reference/fallback. The `custom_components/jojo_tank` directory will become the reusable HACS integration.
+The original Home Assistant configuration is retained as a known-working reference/fallback while the reusable HACS integration becomes the primary installation method.
 
 ## Roadmap
 
+GitHub is the source of truth for the project roadmap.
+
+### Completed
+
 - [x] Capture Revision 6 raw MQTT firmware
 - [x] Document reference hardware and calibration values
-- [ ] Add sanitized Arduino firmware
-- [ ] Preserve original Home Assistant configuration
-- [ ] Add wiring documentation/diagram
-- [ ] Build HACS custom integration
-- [ ] Add UI configuration for tank capacity, height and calibration
-- [ ] Add refill detection
-- [ ] Add daily/weekly/monthly consumption
-- [ ] Add leak detection and estimated days remaining
-- [ ] Add example dashboard
-- [ ] Publish first stable release
+- [x] Add sanitized Arduino firmware
+- [x] Preserve original Home Assistant configuration as reference/fallback
+- [x] Build installable HACS custom integration
+- [x] Create native Home Assistant device and sensor entities
+- [x] Add UI configuration for tank capacity, height and calibration
+- [x] Add configurable sense resistor
+- [x] Add native level, available-water and water-depth calculations
+- [x] Add raw ADC, voltage, current, Wi-Fi, uptime and firmware diagnostics
+- [x] Add configurable refill detection
+- [x] Add multi-reading refill accumulation and timeout
+- [x] Add last refill amount and time entities
+- [x] Add persistent refill history across Home Assistant restarts
+- [x] Add friendly configuration labels/translations
+- [x] Add local Home Assistant integration branding/icon
+
+### Current validation
+
+- [ ] Validate native refill detection against the original Home Assistant automation during a real tank refill
+- [ ] Verify persisted refill amount/time after a Home Assistant restart following a real refill
+
+### Before v1.0 stable
+
+- [ ] Remove dependency on the legacy JoJo template sensors/helpers/automation after validation
+- [ ] Remove obsolete Arduino MQTT Discovery publications and warnings
+- [ ] Add/complete wiring documentation and diagram
+- [ ] Complete installation, configuration, calibration and troubleshooting documentation
+- [ ] Perform a clean HACS installation test on a fresh Home Assistant setup
+- [ ] Add an open-source project license
+- [ ] Publish v1.0.0 stable release
+
+### Future development
+
+- [ ] Daily/weekly/monthly water consumption
+- [ ] Leak or abnormal-consumption detection
+- [ ] Estimated days of water remaining
+- [ ] Example Home Assistant dashboard
+- [ ] Additional notifications/automation examples
+- [ ] Multiple-tank support
 
 ## Security
 
@@ -180,4 +220,4 @@ Do not publish Wi-Fi passwords, MQTT passwords, Home Assistant tokens, API keys 
 
 ## License
 
-A project license will be added before the first stable release.
+An open-source license will be added before the v1.0 stable release.
