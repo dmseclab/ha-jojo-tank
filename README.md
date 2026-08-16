@@ -189,6 +189,7 @@ GitHub is the source of truth for the project roadmap.
 - [x] Add persistent refill history across Home Assistant restarts
 - [x] Add friendly configuration labels/translations
 - [x] Add local Home Assistant integration branding/icon
+- [x] Add MIT open-source license and project disclaimer
 
 ### Current validation
 
@@ -202,7 +203,6 @@ GitHub is the source of truth for the project roadmap.
 - [ ] Add/complete wiring documentation and diagram
 - [ ] Complete installation, configuration, calibration and troubleshooting documentation
 - [ ] Perform a clean HACS installation test on a fresh Home Assistant setup
-- [ ] Add an open-source project license
 - [ ] Publish v1.0.0 stable release
 
 ### Future development
@@ -218,6 +218,16 @@ GitHub is the source of truth for the project roadmap.
 
 Do not publish Wi-Fi passwords, MQTT passwords, Home Assistant tokens, API keys or other credentials. Example configuration in this repository uses placeholders only.
 
+## Disclaimer
+
+This project was developed for a specific private water-tank monitoring installation and is provided as a reference for others who may find it useful.
+
+The software, firmware, wiring information, configuration examples and documentation are provided "as is", without warranty of any kind. Users are responsible for verifying the suitability, safety, calibration, electrical installation and operation of the system for their own environment.
+
+Use of this project is entirely at your own risk and discretion.
+
 ## License
 
-An open-source license will be added before the v1.0 stable release.
+This project is licensed under the MIT License. See `LICENSE` for the full license text.
+
+Copyright (c) 2026 dmseclab
