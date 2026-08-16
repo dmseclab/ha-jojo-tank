@@ -29,6 +29,7 @@ from .const import (
 
 
 def _validate(values: dict[str, Any]) -> dict[str, str]:
+    """Validate tank configuration values."""
     errors: dict[str, str] = {}
     if values[CONF_FULL_CURRENT] <= values[CONF_EMPTY_CURRENT]:
         errors[CONF_FULL_CURRENT] = "full_not_greater_than_empty"
@@ -42,17 +43,20 @@ def _validate(values: dict[str, Any]) -> dict[str, str]:
 
 
 def _schema(defaults: dict[str, Any], include_identity: bool = True) -> vol.Schema:
+    """Build the config/options schema."""
     fields: dict[Any, Any] = {}
     if include_identity:
         fields[vol.Required(CONF_TANK_NAME, default=defaults.get(CONF_TANK_NAME, DEFAULT_TANK_NAME))] = str
         fields[vol.Required(CONF_MQTT_TOPIC, default=defaults.get(CONF_MQTT_TOPIC, DEFAULT_MQTT_TOPIC))] = str
-    fields.update({
-        vol.Required(CONF_TANK_CAPACITY, default=defaults.get(CONF_TANK_CAPACITY, DEFAULT_TANK_CAPACITY)): vol.Coerce(float),
-        vol.Required(CONF_TANK_HEIGHT, default=defaults.get(CONF_TANK_HEIGHT, DEFAULT_TANK_HEIGHT)): vol.Coerce(float),
-        vol.Required(CONF_EMPTY_CURRENT, default=defaults.get(CONF_EMPTY_CURRENT, DEFAULT_EMPTY_CURRENT)): vol.Coerce(float),
-        vol.Required(CONF_FULL_CURRENT, default=defaults.get(CONF_FULL_CURRENT, DEFAULT_FULL_CURRENT)): vol.Coerce(float),
-        vol.Required(CONF_SENSE_RESISTOR, default=defaults.get(CONF_SENSE_RESISTOR, DEFAULT_SENSE_RESISTOR)): vol.Coerce(float),
-    })
+    fields.update(
+        {
+            vol.Required(CONF_TANK_CAPACITY, default=defaults.get(CONF_TANK_CAPACITY, DEFAULT_TANK_CAPACITY)): vol.Coerce(float),
+            vol.Required(CONF_TANK_HEIGHT, default=defaults.get(CONF_TANK_HEIGHT, DEFAULT_TANK_HEIGHT)): vol.Coerce(float),
+            vol.Required(CONF_EMPTY_CURRENT, default=defaults.get(CONF_EMPTY_CURRENT, DEFAULT_EMPTY_CURRENT)): vol.Coerce(float),
+            vol.Required(CONF_FULL_CURRENT, default=defaults.get(CONF_FULL_CURRENT, DEFAULT_FULL_CURRENT)): vol.Coerce(float),
+            vol.Required(CONF_SENSE_RESISTOR, default=defaults.get(CONF_SENSE_RESISTOR, DEFAULT_SENSE_RESISTOR)): vol.Coerce(float),
+        }
+    )
     return vol.Schema(fields)
 
 
@@ -63,7 +67,8 @@ class JoJoTankConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> JoJoTankOptionsFlow:
-        return JoJoTankOptionsFlow(config_entry)
+        """Return the options flow handler."""
+        return JoJoTankOptionsFlow()
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Handle the initial setup step."""
@@ -80,9 +85,6 @@ class JoJoTankConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class JoJoTankOptionsFlow(config_entries.OptionsFlow):
     """Allow tank calibration/settings to be changed after setup."""
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        self.config_entry = config_entry
-
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Manage configurable tank values."""
         errors: dict[str, str] = {}
@@ -92,4 +94,8 @@ class JoJoTankOptionsFlow(config_entries.OptionsFlow):
             if not errors:
                 return self.async_create_entry(title="", data=user_input)
             defaults.update(user_input)
-        return self.async_show_form(step_id="init", data_schema=_schema(defaults, include_identity=False), errors=errors)
+        return self.async_show_form(
+            step_id="init",
+            data_schema=_schema(defaults, include_identity=False),
+            errors=errors,
+        )
