@@ -11,6 +11,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_call_later
+from homeassistant.helpers.storage import Store
 
 from .const import (
     CONF_EMPTY_CURRENT, CONF_FULL_CURRENT, CONF_MQTT_TOPIC, CONF_REFILL_THRESHOLD,
@@ -21,6 +22,7 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+STORAGE_VERSION = 1
 
 
 def _setting(entry: ConfigEntry, key: str, default=None):
@@ -46,21 +48,38 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return False
 
     hass.data.setdefault(DOMAIN, {})
+    store = Store[dict](hass, STORAGE_VERSION, f"{DOMAIN}.{entry.entry_id}")
+    saved = await store.async_load() or {}
+    saved_time = saved.get(DATA_LAST_REFILL_TIME)
+    try:
+        last_refill_time = datetime.fromisoformat(saved_time) if saved_time else None
+    except (TypeError, ValueError):
+        last_refill_time = None
+
     runtime = {
         DATA_LATEST: {},
         DATA_REFILLING: False,
-        DATA_LAST_REFILL_AMOUNT: 0.0,
-        DATA_LAST_REFILL_TIME: None,
+        DATA_LAST_REFILL_AMOUNT: float(saved.get(DATA_LAST_REFILL_AMOUNT, 0.0)),
+        DATA_LAST_REFILL_TIME: last_refill_time,
         DATA_PREVIOUS_VOLUME: None,
         DATA_REFILL_TIMER: None,
+        "store": store,
     }
     hass.data[DOMAIN][entry.entry_id] = runtime
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+
+    async def save_refill_history() -> None:
+        await store.async_save({
+            DATA_LAST_REFILL_AMOUNT: runtime[DATA_LAST_REFILL_AMOUNT],
+            DATA_LAST_REFILL_TIME: runtime[DATA_LAST_REFILL_TIME].isoformat()
+            if runtime[DATA_LAST_REFILL_TIME] else None,
+        })
 
     @callback
     def finish_refill(_now=None) -> None:
         runtime[DATA_REFILLING] = False
         runtime[DATA_REFILL_TIMER] = None
+        hass.async_create_task(save_refill_history())
         async_dispatcher_send(hass, f"{SIGNAL_UPDATE}_{entry.entry_id}")
 
     @callback
@@ -88,10 +107,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 float(runtime[DATA_LAST_REFILL_AMOUNT]) + float(increment), capacity
             )
 
+        hass.async_create_task(save_refill_history())
         if cancel := runtime.get(DATA_REFILL_TIMER):
             cancel()
         timeout = float(_setting(entry, CONF_REFILL_TIMEOUT, DEFAULT_REFILL_TIMEOUT))
-        runtime[DATA_REFILL_TIMER] = async_call_later(hass, timedelta(minutes=timeout), finish_refill)
+        runtime[DATA_REFILL_TIMER] = async_call_later(
+            hass, timedelta(minutes=timeout), finish_refill
+        )
 
     @callback
     def message_received(msg: mqtt.ReceiveMessage) -> None:
