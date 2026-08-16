@@ -14,13 +14,13 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import CONF_EMPTY_CURRENT, CONF_FULL_CURRENT, CONF_SENSE_RESISTOR, CONF_TANK_CAPACITY, CONF_TANK_HEIGHT, CONF_TANK_NAME, DATA_LATEST, DOMAIN, SIGNAL_UPDATE
+from .const import CONF_EMPTY_CURRENT, CONF_FULL_CURRENT, CONF_SENSE_RESISTOR, CONF_TANK_CAPACITY, CONF_TANK_HEIGHT, CONF_TANK_NAME, DATA_LAST_REFILL_AMOUNT, DATA_LAST_REFILL_TIME, DATA_LATEST, DATA_REFILLING, DOMAIN, SIGNAL_UPDATE
 
 
 @dataclass(frozen=True, kw_only=True)
 class JoJoSensorDescription(SensorEntityDescription):
-    """Describe a JoJo Tank sensor."""
-    value_fn: Callable[[dict[str, Any], ConfigEntry], Any]
+    value_fn: Callable[[dict[str, Any], ConfigEntry], Any] | None = None
+    runtime_key: str | None = None
 
 
 def _setting(entry: ConfigEntry, key: str) -> Any:
@@ -66,6 +66,9 @@ SENSORS: tuple[JoJoSensorDescription, ...] = (
     JoJoSensorDescription(key="volume", name="Available Water", native_unit_of_measurement=UnitOfVolume.LITERS, device_class=SensorDeviceClass.VOLUME_STORAGE, state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0, value_fn=_volume),
     JoJoSensorDescription(key="depth", name="Water Depth", native_unit_of_measurement=UnitOfLength.MILLIMETERS, device_class=SensorDeviceClass.DISTANCE, state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0, value_fn=_depth),
     JoJoSensorDescription(key="current", name="Sensor Current", native_unit_of_measurement="mA", state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=2, value_fn=_current),
+    JoJoSensorDescription(key="refill_status", name="Refill Status", runtime_key=DATA_REFILLING),
+    JoJoSensorDescription(key="last_refill_amount", name="Last Refill Amount", native_unit_of_measurement=UnitOfVolume.LITERS, device_class=SensorDeviceClass.VOLUME, suggested_display_precision=0, runtime_key=DATA_LAST_REFILL_AMOUNT),
+    JoJoSensorDescription(key="last_refill_time", name="Last Refill Time", device_class=SensorDeviceClass.TIMESTAMP, runtime_key=DATA_LAST_REFILL_TIME),
     JoJoSensorDescription(key="raw_adc", name="Raw ADC", state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0, value_fn=lambda data, entry: _float(data, "raw_adc")),
     JoJoSensorDescription(key="voltage", name="Sensor Voltage", native_unit_of_measurement=UnitOfElectricPotential.MILLIVOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0, value_fn=lambda data, entry: _float(data, "voltage_mv")),
     JoJoSensorDescription(key="wifi", name="Wi-Fi Signal", native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT, device_class=SensorDeviceClass.SIGNAL_STRENGTH, state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0, entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False, value_fn=lambda data, entry: _float(data, "wifi_rssi")),
@@ -80,7 +83,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
 
 class JoJoTankSensor(SensorEntity):
-    """Representation of a JoJo Tank sensor."""
     _attr_has_entity_name = True
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry, description: JoJoSensorDescription) -> None:
@@ -98,9 +100,15 @@ class JoJoTankSensor(SensorEntity):
 
     @callback
     def _update_value(self) -> None:
-        data = self.hass.data[DOMAIN][self.entry.entry_id][DATA_LATEST]
-        value = self.entity_description.value_fn(data, self.entry)
-        if isinstance(value, float) and self.entity_description.key in {"level", "volume", "depth", "current", "raw_adc", "voltage", "wifi", "uptime"}:
+        runtime = self.hass.data[DOMAIN][self.entry.entry_id]
+        if self.entity_description.runtime_key is not None:
+            value = runtime.get(self.entity_description.runtime_key)
+            if self.entity_description.key == "refill_status":
+                value = "Refilling" if value else "Not Refilling"
+        else:
+            data = runtime[DATA_LATEST]
+            value = self.entity_description.value_fn(data, self.entry) if self.entity_description.value_fn else None
+        if isinstance(value, float) and self.entity_description.key in {"level", "volume", "depth", "current", "raw_adc", "voltage", "wifi", "uptime", "last_refill_amount"}:
             value = round(value, 2)
         self._attr_native_value = value
 
