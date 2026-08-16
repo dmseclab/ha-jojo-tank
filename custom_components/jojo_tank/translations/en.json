@@ -1,0 +1,50 @@
+{
+  "title": "JoJo Tank Monitor",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up JoJo Tank Monitor",
+        "description": "Configure the water tank and MQTT state topic published by the Arduino firmware.",
+        "data": {
+          "tank_name": "Tank name",
+          "mqtt_topic": "MQTT state topic",
+          "tank_capacity": "Tank capacity (L)",
+          "tank_height": "Tank height (mm)",
+          "empty_current": "Empty calibration current (mA)",
+          "full_current": "Full calibration current (mA)",
+          "sense_resistor": "Sense resistor (ohm)",
+          "refill_threshold": "Refill detection threshold (L)",
+          "refill_timeout": "Refill end timeout (minutes)"
+        }
+      }
+    },
+    "error": {
+      "full_not_greater_than_empty": "Full current must be greater than empty current.",
+      "must_be_positive": "Value must be greater than zero."
+    },
+    "abort": {
+      "already_configured": "This MQTT tank topic is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Tank calibration, dimensions and refill detection",
+        "description": "Change tank dimensions, sensor calibration and refill detection settings. The integration reloads automatically after saving.",
+        "data": {
+          "tank_capacity": "Tank capacity (L)",
+          "tank_height": "Tank height (mm)",
+          "empty_current": "Empty calibration current (mA)",
+          "full_current": "Full calibration current (mA)",
+          "sense_resistor": "Sense resistor (ohm)",
+          "refill_threshold": "Refill detection threshold (L)",
+          "refill_timeout": "Refill end timeout (minutes)"
+        }
+      }
+    },
+    "error": {
+      "full_not_greater_than_empty": "Full current must be greater than empty current.",
+      "must_be_positive": "Value must be greater than zero."
+    }
+  }
+}
