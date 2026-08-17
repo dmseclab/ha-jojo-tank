@@ -61,6 +61,13 @@ def _depth(data: dict[str, Any], entry: ConfigEntry) -> float | None:
     return None if level is None else level / 100.0 * float(_setting(entry, CONF_TANK_HEIGHT))
 
 
+def _friendly_refill_time(value: Any) -> str | None:
+    """Return a compact local-time display while preserving the native timestamp sensor."""
+    if not isinstance(value, datetime):
+        return None
+    return value.astimezone().strftime("%d %b %H:%M")
+
+
 SENSORS: tuple[JoJoSensorDescription, ...] = (
     JoJoSensorDescription(key="level", name="Tank Level", native_unit_of_measurement=PERCENTAGE, device_class=SensorDeviceClass.MOISTURE, state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0, value_fn=_level),
     JoJoSensorDescription(key="volume", name="Available Water", native_unit_of_measurement=UnitOfVolume.LITERS, device_class=SensorDeviceClass.VOLUME_STORAGE, state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0, value_fn=_volume),
@@ -69,6 +76,7 @@ SENSORS: tuple[JoJoSensorDescription, ...] = (
     JoJoSensorDescription(key="refill_status", name="Refill Status", runtime_key=DATA_REFILLING),
     JoJoSensorDescription(key="last_refill_amount", name="Last Refill Amount", native_unit_of_measurement=UnitOfVolume.LITERS, device_class=SensorDeviceClass.VOLUME, suggested_display_precision=0, runtime_key=DATA_LAST_REFILL_AMOUNT),
     JoJoSensorDescription(key="last_refill_time", name="Last Refill Time", device_class=SensorDeviceClass.TIMESTAMP, runtime_key=DATA_LAST_REFILL_TIME),
+    JoJoSensorDescription(key="last_refill", name="Last Refill", runtime_key=DATA_LAST_REFILL_TIME),
     JoJoSensorDescription(key="raw_adc", name="Raw ADC", state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0, value_fn=lambda data, entry: _float(data, "raw_adc")),
     JoJoSensorDescription(key="voltage", name="Sensor Voltage", native_unit_of_measurement=UnitOfElectricPotential.MILLIVOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0, value_fn=lambda data, entry: _float(data, "voltage_mv")),
     JoJoSensorDescription(key="wifi", name="Wi-Fi Signal", native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT, device_class=SensorDeviceClass.SIGNAL_STRENGTH, state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0, entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False, value_fn=lambda data, entry: _float(data, "wifi_rssi")),
@@ -105,6 +113,8 @@ class JoJoTankSensor(SensorEntity):
             value = runtime.get(self.entity_description.runtime_key)
             if self.entity_description.key == "refill_status":
                 value = "Refilling" if value else "Not Refilling"
+            elif self.entity_description.key == "last_refill":
+                value = _friendly_refill_time(value)
         else:
             data = runtime[DATA_LATEST]
             value = self.entity_description.value_fn(data, self.entry) if self.entity_description.value_fn else None
