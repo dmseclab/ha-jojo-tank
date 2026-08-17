@@ -1,0 +1,257 @@
+# JoJo Tank Monitor - Example Dashboard Card
+#
+# Requires the custom:button-card frontend card (available through HACS).
+# This example uses entities created by the JoJo Tank Monitor integration.
+# Entity IDs may differ depending on the tank/device name used during setup.
+# Replace the three entity IDs below with the IDs from your installation.
+#
+# Reference installation entities:
+#   Level:        sensor.jojo_water_tank_tank_level
+#   Volume:       sensor.jojo_water_tank_available_water
+#   Last reading: sensor.jojo_water_tank_last_reading
+
+type: custom:button-card
+entity: sensor.jojo_water_tank_tank_level
+name: JoJo Water Tank
+show_state: false
+show_icon: false
+triggers_update:
+  - sensor.jojo_water_tank_tank_level
+  - sensor.jojo_water_tank_available_water
+  - sensor.jojo_water_tank_last_reading
+custom_fields:
+  tank: |
+    [[[
+      const rawLevel = Number(entity?.state);
+
+      const valid =
+        entity &&
+        !['unknown', 'unavailable', 'none'].includes(entity.state) &&
+        Number.isFinite(rawLevel);
+
+      const percentage = valid
+        ? Math.max(0, Math.min(100, Math.round(rawLevel)))
+        : 0;
+
+      const volumeEntity = states['sensor.jojo_water_tank_available_water'];
+      const rawVolume = Number(volumeEntity?.state);
+
+      const volumeValid =
+        volumeEntity &&
+        !['unknown', 'unavailable', 'none'].includes(volumeEntity.state) &&
+        Number.isFinite(rawVolume);
+
+      const volume = volumeValid
+        ? Math.round(rawVolume).toLocaleString()
+        : '—';
+
+      let status = 'Healthy';
+      let statusClass = 'healthy';
+
+      if (!valid) {
+        status = 'Sensor Offline';
+        statusClass = 'offline';
+      } else if (percentage < 20) {
+        status = 'Critical';
+        statusClass = 'critical';
+      } else if (percentage < 50) {
+        status = 'Low';
+        statusClass = 'low';
+      } else if (percentage >= 98) {
+        status = 'Full';
+        statusClass = 'full';
+      }
+
+      const readingEntity = states['sensor.jojo_water_tank_last_reading'];
+      let lastReading = 'Unavailable';
+
+      if (
+        readingEntity &&
+        !['unknown', 'unavailable', 'none'].includes(readingEntity.state)
+      ) {
+        const readingDate = new Date(readingEntity.state);
+
+        if (!isNaN(readingDate.getTime())) {
+          lastReading = readingDate.toLocaleString([], {
+            day: '2-digit',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+        } else {
+          lastReading = readingEntity.state;
+        }
+      }
+
+      return `
+        <div class="tank-wrapper ${statusClass}">
+          <div class="tank-body">
+            <div
+              class="tank-water"
+              style="height: ${valid ? percentage : 0}%;">
+            </div>
+
+            <div class="tank-content">
+              <div class="tank-percentage">
+                ${valid ? percentage + '%' : '—'}
+              </div>
+
+              <div class="tank-volume">
+                ${volumeValid ? volume + ' L' : 'Volume unavailable'}
+              </div>
+            </div>
+          </div>
+
+          <div class="tank-status">
+            ${status}
+          </div>
+
+          <div class="tank-updated">
+            Last reading: ${lastReading}
+          </div>
+        </div>
+      `;
+    ]]]
+styles:
+  card:
+    - padding: 20px
+    - border-radius: 16px
+    - height: 390px
+  name:
+    - font-size: 20px
+    - font-weight: 600
+    - padding-bottom: 12px
+  grid:
+    - grid-template-areas: '"n" "tank"'
+    - grid-template-columns: 1fr
+    - grid-template-rows: min-content 1fr
+  custom_fields:
+    tank:
+      - width: 100%
+      - height: 100%
+extra_styles: |
+  .tank-wrapper {
+    --tank-status-color: #2196f3;
+    --tank-water-color: #1497bd;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+  }
+
+  .tank-wrapper.full,
+  .tank-wrapper.healthy {
+    --tank-status-color: #2196f3;
+  }
+
+  .tank-wrapper.low {
+    --tank-status-color: #ffb300;
+  }
+
+  .tank-wrapper.critical {
+    --tank-status-color: #f44336;
+  }
+
+  .tank-wrapper.offline {
+    --tank-status-color: #9e9e9e;
+    --tank-water-color: #757575;
+  }
+
+  .tank-body {
+    position: relative;
+    width: 180px;
+    height: 250px;
+    box-sizing: border-box;
+    overflow: hidden;
+
+    border: 5px solid var(--primary-text-color);
+    border-radius: 32px 32px 20px 20px;
+    background: var(--card-background-color);
+  }
+
+  .tank-body::before {
+    content: "";
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    width: 90px;
+    height: 18px;
+    box-sizing: border-box;
+
+    transform: translateX(-50%);
+
+    border: 5px solid var(--primary-text-color);
+    border-bottom: none;
+    border-radius: 14px 14px 0 0;
+
+    background: var(--card-background-color);
+    z-index: 3;
+  }
+
+  .tank-water {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+
+    background: var(--tank-water-color);
+    opacity: 0.88;
+
+    transition: height 1.5s ease;
+  }
+
+  .tank-water::before {
+    content: "";
+    position: absolute;
+    top: -8px;
+    left: -5%;
+    width: 110%;
+    height: 16px;
+
+    border-radius: 50%;
+    background: var(--tank-water-color);
+  }
+
+  .tank-content {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+
+    text-shadow:
+      0 1px 3px var(--card-background-color),
+      0 0 6px var(--card-background-color);
+  }
+
+  .tank-percentage {
+    font-size: 38px;
+    font-weight: 700;
+    color: var(--primary-text-color);
+  }
+
+  .tank-volume {
+    margin-top: 4px;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--primary-text-color);
+  }
+
+  .tank-status {
+    margin-top: 14px;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--tank-status-color);
+    transition: color 0.5s ease;
+  }
+
+  .tank-updated {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--secondary-text-color);
+  }
