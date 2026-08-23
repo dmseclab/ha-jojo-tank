@@ -8,16 +8,17 @@ import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .const import (
     CONF_EMPTY_CURRENT, CONF_FULL_CURRENT, CONF_MINIMUM_LEVEL, CONF_MQTT_TOPIC,
     CONF_REFILL_THRESHOLD, CONF_REFILL_TIMEOUT, CONF_SENSE_RESISTOR,
     CONF_TANK_CAPACITY, CONF_TANK_HEIGHT, CONF_TANK_NAME,
     DATA_LAST_REFILL_AMOUNT, DATA_LAST_REFILL_TIME, DATA_REFILLING,
-    DEFAULT_EMPTY_CURRENT, DEFAULT_FULL_CURRENT, DEFAULT_MINIMUM_LEVEL,
-    DEFAULT_MQTT_TOPIC, DEFAULT_REFILL_THRESHOLD, DEFAULT_REFILL_TIMEOUT,
-    DEFAULT_SENSE_RESISTOR, DEFAULT_TANK_CAPACITY, DEFAULT_TANK_HEIGHT,
-    DEFAULT_TANK_NAME, DOMAIN, SIGNAL_UPDATE,
+    DATA_REFILL_TIMER, DEFAULT_EMPTY_CURRENT, DEFAULT_FULL_CURRENT,
+    DEFAULT_MINIMUM_LEVEL, DEFAULT_MQTT_TOPIC, DEFAULT_REFILL_THRESHOLD,
+    DEFAULT_REFILL_TIMEOUT, DEFAULT_SENSE_RESISTOR, DEFAULT_TANK_CAPACITY,
+    DEFAULT_TANK_HEIGHT, DEFAULT_TANK_NAME, DOMAIN, SIGNAL_UPDATE,
 )
 
 CONF_RESET_REFILL_HISTORY = "reset_refill_history"
@@ -80,6 +81,12 @@ class JoJoTankConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class JoJoTankOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        return self.async_show_menu(
+            step_id="init",
+            menu_options=["settings", "reset_refill_history"],
+        )
+
+    async def async_step_settings(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         errors: dict[str, str] = {}
         defaults = {**self.config_entry.data, **self.config_entry.options}
         if user_input is not None:
@@ -88,10 +95,9 @@ class JoJoTankOptionsFlow(config_entries.OptionsFlow):
                 return self.async_create_entry(title="", data=user_input)
             defaults.update(user_input)
         return self.async_show_form(
-            step_id="init",
+            step_id="settings",
             data_schema=_schema(defaults, include_identity=False),
             errors=errors,
-            menu_options=["reset_refill_history"],
         )
 
     async def async_step_reset_refill_history(self, user_input: dict[str, Any] | None = None) -> FlowResult:
@@ -99,20 +105,21 @@ class JoJoTankOptionsFlow(config_entries.OptionsFlow):
             if user_input.get(CONF_RESET_REFILL_HISTORY):
                 runtime = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
                 if runtime is not None:
-                    if cancel := runtime.get("refill_timer"):
+                    if cancel := runtime.get(DATA_REFILL_TIMER):
                         cancel()
                     runtime[DATA_REFILLING] = False
                     runtime[DATA_LAST_REFILL_AMOUNT] = 0.0
                     runtime[DATA_LAST_REFILL_TIME] = None
-                    runtime["refill_timer"] = None
+                    runtime[DATA_REFILL_TIMER] = None
                     store = runtime.get("store")
                     if store is not None:
                         await store.async_save({
                             DATA_LAST_REFILL_AMOUNT: 0.0,
                             DATA_LAST_REFILL_TIME: None,
                         })
-                    from homeassistant.helpers.dispatcher import async_dispatcher_send
-                    async_dispatcher_send(self.hass, f"{SIGNAL_UPDATE}_{self.config_entry.entry_id}")
+                    async_dispatcher_send(
+                        self.hass, f"{SIGNAL_UPDATE}_{self.config_entry.entry_id}"
+                    )
             return self.async_create_entry(title="", data=dict(self.config_entry.options))
 
         return self.async_show_form(
