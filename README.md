@@ -2,15 +2,15 @@
 
 A reproducible DIY water-tank monitoring project using an Arduino-compatible controller, a submersible pressure level sensor, MQTT and Home Assistant.
 
-> **Project status:** v0.4.2 active development / pre-v1.0 validation. The HACS custom integration is operational and provides native tank calculations, diagnostics, configurable calibration, refill detection, persistent refill history and local Home Assistant branding. The current reference installation is running the integration while real-world refill behaviour is validated before the first stable release.
+> **Project status:** v0.5.4 active development / pre-v1.0 validation. The HACS custom integration is the primary Home Assistant implementation and provides native tank calculations, configurable calibration, refill detection/history, a configurable low-water threshold with hysteresis, an independent estimation reserve level, diagnostics and local Home Assistant branding. The legacy YAML/template calculation layer has been removed from the reference installation.
 
 ## Overview
 <img width="638" height="494" alt="JoJo1" src="https://github.com/user-attachments/assets/e072b129-69aa-4fcc-9ffc-0a8c6d0a755a" />
 <img width="638" height="681" alt="JoJo2" src="https://github.com/user-attachments/assets/f832b154-4fa7-4778-8eff-c5c04bddf517" />
 
-The reference system uses an Arduino to read raw sensor measurements and publish them to MQTT every five minutes. The JoJo Tank Monitor Home Assistant integration performs the tank-specific calibration and calculates water level, depth and volume.
+The reference system uses an Arduino to read raw sensor measurements and publish them to MQTT every five minutes. The JoJo Tank Monitor Home Assistant integration performs tank-specific calibration and calculates water level, depth and available volume.
 
-This separation is intentional: the Arduino firmware does not need to know the tank capacity or height, so the same firmware can be reused with different tanks and calibration values.
+This separation is intentional: the Arduino firmware does not need to know the tank capacity, height, warning threshold or estimation reserve, so the same firmware can be reused with different tanks and calibration values.
 
 ```text
 Submersible pressure sensor
@@ -32,11 +32,16 @@ Arduino UNO R4 WiFi-compatible board
  JoJo Tank Monitor
      |- calibration
      |- level (%)
-     |- volume (L)
+     |- available water (L)
      |- depth (mm)
+     |- low-water status
      |- refill detection
      |- refill history
+     |- estimation reserve
      `- diagnostics
+          |
+          +--> notifications / automations
+          `--> warning light
 ```
 
 ## Reference Hardware
@@ -75,12 +80,18 @@ The exact supplier of the controller used in the original installation is not kn
 | Publish interval | 5 minutes |
 | Refill detection threshold | 75 L |
 | Refill end timeout | 15 minutes |
+| Low water level | 20% (user configurable) |
+| Estimation reserve level | 10% (user configurable) |
 
-Tank capacity, tank height, calibration and refill settings belong on the Home Assistant integration side. They are deliberately not hard-coded into the Arduino firmware.
+Tank capacity, tank height, calibration, refill settings, low-water threshold and estimation reserve belong on the Home Assistant integration side. They are deliberately not hard-coded into the Arduino firmware.
 
-## Arduino Configuration
+**Low Water Level** and **Estimation Reserve Level** are independent. Low Water Level controls the warning binary sensor and associated automations. Estimation Reserve Level is reserved for the planned days-remaining calculation and can be set independently (for example, a 50% warning threshold with a 10% estimation reserve).
 
-Before uploading the firmware, configure Wi-Fi and MQTT settings in the `USER CONFIG` section:
+## Arduino Firmware
+
+The reference firmware is Revision 6 / firmware `6.0.0` and publishes raw measurements rather than tank-specific calculated values.
+
+Before compiling, install the required Arduino libraries for the UNO R4 WiFi firmware, including **ArduinoMqttClient**. Then configure Wi-Fi and MQTT settings in the firmware `USER CONFIG` section:
 
 ```cpp
 const char* WIFI_SSID     = "YOUR_WIFI_SSID";
@@ -91,7 +102,7 @@ const char* MQTT_USER     = "YOUR_MQTT_USERNAME";
 const char* MQTT_PASS     = "YOUR_MQTT_PASSWORD";
 ```
 
-Never commit real Wi-Fi or MQTT credentials to a public repository.
+Never commit real Wi-Fi or MQTT credentials to a public repository. See the README/instructions in the firmware folder for firmware-specific setup notes.
 
 ## MQTT
 
@@ -101,7 +112,7 @@ The Revision 6 firmware publishes raw measurements to:
 homeassistant/sensor/jojo_tank/state
 ```
 
-The Arduino publishes the raw ADC value, sensor voltage/current and diagnostic information. Tank-specific calculations remain in the Home Assistant integration.
+The physical Arduino/MQTT device can retain its raw diagnostic entities (for example Raw ADC, Sensor Voltage, Firmware, Uptime and Wi-Fi Signal). Tank calculations and operational status belong to the JoJo Tank Monitor integration.
 
 ## Home Assistant Calculations
 
@@ -133,6 +144,60 @@ Depth (mm) = Level (%) / 100 x Tank height (mm)
 
 For the reference tank, capacity is 5,250 L and height is 1,850 mm.
 
+### Low-water logic
+
+The Low Water binary sensor uses the configured **Low Water Level**. It enters the low-water state at or below the threshold and uses a 2 percentage-point clear margin to prevent repeated toggling near the threshold.
+
+Example: with Low Water Level set to 50%, the warning activates at 50% or below and clears only after the calculated level recovers above the hysteresis margin.
+
+## Current Integration Entities
+
+Entity IDs depend on the tank/device name and Home Assistant's entity registry. The IDs below are from the reference installation and should be treated as examples.
+
+| Entity / example entity ID | Type | Purpose | Default state |
+| --- | --- | --- | --- |
+| `sensor.jojo_water_tank_tank_level` | Sensor | Calculated tank level | Enabled |
+| `sensor.jojo_water_tank_available_water` | Sensor | Calculated available water in litres | Enabled |
+| `sensor.jojo_water_tank_water_depth` | Sensor | Calculated water depth | Enabled |
+| `sensor.jojo_water_tank_sensor_current` | Sensor | Sensor current calculated from voltage and sense resistor | Enabled |
+| `sensor.jojo_water_tank_raw_adc` | Sensor | Raw ADC measurement received from MQTT | Enabled |
+| `sensor.jojo_water_tank_sensor_voltage` | Sensor | Raw sensor voltage received from MQTT | Enabled |
+| `sensor.jojo_water_tank_last_reading` | Sensor | Timestamp of the most recent integration reading | Enabled |
+| `sensor.living_room_jojo_water_tank_minimum_water_level` | Diagnostic sensor | Configured **Low Water Level**; legacy entity ID is retained for upgrade compatibility | Enabled |
+| `sensor.living_room_jojo_water_tank_estimation_reserve_level` | Diagnostic sensor | Independent reserve level for planned water-remaining estimation | Enabled |
+| `binary_sensor.living_room_jojo_water_tank_low_water` | Binary sensor | Low-water problem state with 2% hysteresis | Enabled |
+| `sensor.living_room_jojo_water_tank_refill_status` | Sensor | `Refilling` / `Not Refilling` | Enabled |
+| `sensor.living_room_jojo_water_tank_last_refill_amount` | Sensor | Stored volume of the last detected refill | Enabled |
+| `sensor.living_room_jojo_water_tank_last_refill_time` | Sensor | Timestamp of the last detected refill | Enabled |
+| `sensor.living_room_jojo_water_tank_last_refill` | Sensor | Friendly last-refill display; shows `Never` until a refill is recorded | Enabled |
+| Wi-Fi Signal | Diagnostic sensor | MQTT Wi-Fi RSSI exposed by integration | Disabled by default |
+| Uptime | Diagnostic sensor | Arduino uptime exposed by integration | Disabled by default |
+| Firmware | Diagnostic sensor | Arduino firmware version exposed by integration | Disabled by default |
+
+The physical MQTT device in the reference installation also retains `sensor.jojo_tank_firmware`, `sensor.jojo_tank_raw_adc`, `sensor.jojo_tank_sensor_voltage`, `sensor.jojo_tank_uptime` and `sensor.jojo_tank_wifi_signal` for low-level hardware troubleshooting. These are source/diagnostic entities and are intentionally separate from the integration's calculated entities.
+
+Legacy YAML/template entities such as `sensor.jojo_tank_level`, `sensor.jojo_tank_volume`, `sensor.jojo_tank_calculated_current`, `sensor.jojo_tank_current_display`, `sensor.jojo_tank_water_depth` and the old template refill entities are no longer required by the reference installation and have been removed.
+
+## Configuration and Maintenance
+
+Open **Settings -> Devices & services -> JoJo Tank Monitor -> Configure**.
+
+The options menu currently provides:
+
+- **Tank Settings** — tank dimensions, sensor calibration, refill settings, Low Water Level and Estimation Reserve Level.
+- **Clear Refill Data** — deliberately clears stored refill amount/time without changing calibration, dimensions, MQTT readings or Home Assistant statistics.
+
+Changing Low Water Level automatically changes the integration's Low Water binary sensor behaviour. Automations should therefore trigger from the Low Water binary sensor rather than hard-coding a percentage independently.
+
+## Reference Automations
+
+The reference Home Assistant installation currently uses the Low Water binary sensor for two functions:
+
+1. A low-water/recovery notification.
+2. A dedicated Living Room warning light. When Low Water is `on`, `light.living_room_light` is set to red at full brightness; when Low Water clears, the light is switched off.
+
+The warning light is primarily dedicated to tank status in the reference installation. If a shared household light is used instead, consider preserving/restoring its previous state rather than always turning it off when the warning clears.
+
 ## Calibration
 
 Do not assume another sensor or installation will produce exactly the same full-scale current as the reference system.
@@ -156,16 +221,22 @@ ha-jojo-tank/
 |- LICENSE
 |- firmware/
 |  `- arduino_uno_r4_wifi/
+|     |- README.md
 |     `- jojo_tank_mqtt.ino
 |- examples/
 |  `- original-ha-config/
 `- custom_components/
    `- jojo_tank/
-      |- brand/
-      `- translations/
+      |- binary_sensor.py
+      |- config_flow.py
+      |- const.py
+      |- sensor.py
+      |- strings.json
+      |- translations/
+      `- brand/
 ```
 
-The original Home Assistant configuration is retained as a known-working reference/fallback while the reusable HACS integration becomes the primary installation method.
+The original Home Assistant configuration is retained in `examples/` as historical/reference material. The HACS integration is now the primary implementation and the reference Home Assistant instance no longer depends on the legacy JoJo template sensors/helpers.
 
 ## Roadmap
 
@@ -175,7 +246,7 @@ GitHub is the source of truth for the project roadmap.
 
 - [x] Capture Revision 6 raw MQTT firmware
 - [x] Document reference hardware and calibration values
-- [x] Add sanitized Arduino firmware
+- [x] Add sanitized Arduino firmware and firmware setup notes
 - [x] Preserve original Home Assistant configuration as reference/fallback
 - [x] Build installable HACS custom integration
 - [x] Create native Home Assistant device and sensor entities
@@ -185,34 +256,45 @@ GitHub is the source of truth for the project roadmap.
 - [x] Add raw ADC, voltage, current, Wi-Fi, uptime and firmware diagnostics
 - [x] Add configurable refill detection
 - [x] Add multi-reading refill accumulation and timeout
-- [x] Add last refill amount and time entities
+- [x] Add last refill amount/time and friendly `Never` state
 - [x] Add persistent refill history across Home Assistant restarts
-- [x] Add friendly configuration labels/translations
+- [x] Add deliberate **Clear Refill Data** action
+- [x] Add configurable **Low Water Level**
+- [x] Add Low Water binary sensor with 2% hysteresis
+- [x] Add independent **Estimation Reserve Level**
+- [x] Add low-water notification/reference automation
+- [x] Add low-water warning-light/reference automation
+- [x] Remove obsolete legacy YAML/template entities from the reference installation
+- [x] Add friendly configuration/menu labels and translations
 - [x] Add local Home Assistant integration branding/icon
 - [x] Add MIT open-source license and project disclaimer
 
 ### Current validation
 
-- [ ] Validate native refill detection against the original Home Assistant automation during a real tank refill
+- [ ] Validate native refill detection during a real tank refill
 - [ ] Verify persisted refill amount/time after a Home Assistant restart following a real refill
+- [ ] Continue real-world validation of Low Water threshold/hysteresis behaviour
 
 ### Before v1.0 stable
 
-- [ ] Remove dependency on the legacy JoJo template sensors/helpers/automation after validation
-- [ ] Remove obsolete Arduino MQTT Discovery publications and warnings
+- [ ] Remove obsolete Arduino MQTT Discovery publications/warnings if any remain
 - [ ] Add/complete wiring documentation and diagram
-- [ ] Complete installation, configuration, calibration and troubleshooting documentation
+- [ ] Complete clean-install, calibration and troubleshooting documentation
 - [ ] Perform a clean HACS installation test on a fresh Home Assistant setup
 - [ ] Publish v1.0.0 stable release
 
 ### Future development
 
-- [ ] Daily/weekly/monthly water consumption
+- [ ] Water Used Today
+- [ ] Water Used Yesterday
+- [ ] 7-day average daily water usage
+- [ ] Estimated Days Remaining using the independent Estimation Reserve Level
+- [ ] Daily/weekly/monthly water-consumption reporting
 - [ ] Leak or abnormal-consumption detection
-- [ ] Estimated days of water remaining
 - [ ] Example Home Assistant dashboard
 - [ ] Additional notifications/automation examples
 - [ ] Multiple-tank support
+- [ ] Re-enable/document InfluxDB and Grafana once integration behaviour and entity design are stable
 
 ## Security
 
