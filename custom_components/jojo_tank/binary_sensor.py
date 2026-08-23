@@ -23,6 +23,8 @@ from .const import (
     SIGNAL_UPDATE,
 )
 
+LOW_WATER_CLEAR_MARGIN = 2.0
+
 
 def _setting(entry: ConfigEntry, key: str, default: Any = None) -> Any:
     return entry.options.get(key, entry.data.get(key, default))
@@ -50,7 +52,7 @@ async def async_setup_entry(
 
 
 class JoJoLowWaterBinarySensor(BinarySensorEntity):
-    """Indicate when the measured tank level is at or below the configured minimum."""
+    """Indicate low water with hysteresis around the configured minimum."""
 
     _attr_has_entity_name = True
     _attr_name = "Low Water"
@@ -75,8 +77,17 @@ class JoJoLowWaterBinarySensor(BinarySensorEntity):
         if level is None:
             self._attr_is_on = None
             return
+
         minimum = float(_setting(self.entry, CONF_MINIMUM_LEVEL, DEFAULT_MINIMUM_LEVEL))
-        self._attr_is_on = level <= minimum
+
+        # Hysteresis prevents the binary sensor from repeatedly toggling when
+        # the measured level hovers around the configured minimum. Enter the
+        # low-water state at/below the threshold, but only clear it after the
+        # level has recovered LOW_WATER_CLEAR_MARGIN percentage points above it.
+        if self._attr_is_on:
+            self._attr_is_on = level < (minimum + LOW_WATER_CLEAR_MARGIN)
+        else:
+            self._attr_is_on = level <= minimum
 
     async def async_added_to_hass(self) -> None:
         self.async_on_remove(
