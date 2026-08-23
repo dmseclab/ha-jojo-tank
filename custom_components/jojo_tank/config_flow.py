@@ -11,14 +11,16 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .const import (
-    CONF_EMPTY_CURRENT, CONF_FULL_CURRENT, CONF_MINIMUM_LEVEL, CONF_MQTT_TOPIC,
-    CONF_REFILL_THRESHOLD, CONF_REFILL_TIMEOUT, CONF_SENSE_RESISTOR,
-    CONF_TANK_CAPACITY, CONF_TANK_HEIGHT, CONF_TANK_NAME,
-    DATA_LAST_REFILL_AMOUNT, DATA_LAST_REFILL_TIME, DATA_REFILLING,
-    DATA_REFILL_TIMER, DEFAULT_EMPTY_CURRENT, DEFAULT_FULL_CURRENT,
-    DEFAULT_MINIMUM_LEVEL, DEFAULT_MQTT_TOPIC, DEFAULT_REFILL_THRESHOLD,
-    DEFAULT_REFILL_TIMEOUT, DEFAULT_SENSE_RESISTOR, DEFAULT_TANK_CAPACITY,
-    DEFAULT_TANK_HEIGHT, DEFAULT_TANK_NAME, DOMAIN, SIGNAL_UPDATE,
+    CONF_EMPTY_CURRENT, CONF_ESTIMATION_RESERVE_LEVEL, CONF_FULL_CURRENT,
+    CONF_MINIMUM_LEVEL, CONF_MQTT_TOPIC, CONF_REFILL_THRESHOLD,
+    CONF_REFILL_TIMEOUT, CONF_SENSE_RESISTOR, CONF_TANK_CAPACITY,
+    CONF_TANK_HEIGHT, CONF_TANK_NAME, DATA_LAST_REFILL_AMOUNT,
+    DATA_LAST_REFILL_TIME, DATA_REFILLING, DATA_REFILL_TIMER,
+    DEFAULT_EMPTY_CURRENT, DEFAULT_ESTIMATION_RESERVE_LEVEL,
+    DEFAULT_FULL_CURRENT, DEFAULT_MINIMUM_LEVEL, DEFAULT_MQTT_TOPIC,
+    DEFAULT_REFILL_THRESHOLD, DEFAULT_REFILL_TIMEOUT, DEFAULT_SENSE_RESISTOR,
+    DEFAULT_TANK_CAPACITY, DEFAULT_TANK_HEIGHT, DEFAULT_TANK_NAME, DOMAIN,
+    SIGNAL_UPDATE,
 )
 
 CONF_RESET_REFILL_HISTORY = "reset_refill_history"
@@ -40,6 +42,8 @@ def _validate(values: dict[str, Any]) -> dict[str, str]:
         errors[CONF_REFILL_TIMEOUT] = "must_be_positive"
     elif not 0 <= values.get(CONF_MINIMUM_LEVEL, DEFAULT_MINIMUM_LEVEL) <= 100:
         errors[CONF_MINIMUM_LEVEL] = "minimum_level_range"
+    elif not 0 <= values.get(CONF_ESTIMATION_RESERVE_LEVEL, DEFAULT_ESTIMATION_RESERVE_LEVEL) <= 100:
+        errors[CONF_ESTIMATION_RESERVE_LEVEL] = "estimation_reserve_level_range"
     return errors
 
 
@@ -57,6 +61,7 @@ def _schema(defaults: dict[str, Any], include_identity: bool = True) -> vol.Sche
         vol.Required(CONF_REFILL_THRESHOLD, default=defaults.get(CONF_REFILL_THRESHOLD, DEFAULT_REFILL_THRESHOLD)): vol.Coerce(float),
         vol.Required(CONF_REFILL_TIMEOUT, default=defaults.get(CONF_REFILL_TIMEOUT, DEFAULT_REFILL_TIMEOUT)): vol.Coerce(float),
         vol.Required(CONF_MINIMUM_LEVEL, default=defaults.get(CONF_MINIMUM_LEVEL, DEFAULT_MINIMUM_LEVEL)): vol.Coerce(float),
+        vol.Required(CONF_ESTIMATION_RESERVE_LEVEL, default=defaults.get(CONF_ESTIMATION_RESERVE_LEVEL, DEFAULT_ESTIMATION_RESERVE_LEVEL)): vol.Coerce(float),
     })
     return vol.Schema(fields)
 
@@ -81,10 +86,7 @@ class JoJoTankConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class JoJoTankOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        return self.async_show_menu(
-            step_id="init",
-            menu_options=["settings", "reset_refill_history"],
-        )
+        return self.async_show_menu(step_id="init", menu_options=["settings", "reset_refill_history"])
 
     async def async_step_settings(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         errors: dict[str, str] = {}
@@ -94,11 +96,7 @@ class JoJoTankOptionsFlow(config_entries.OptionsFlow):
             if not errors:
                 return self.async_create_entry(title="", data=user_input)
             defaults.update(user_input)
-        return self.async_show_form(
-            step_id="settings",
-            data_schema=_schema(defaults, include_identity=False),
-            errors=errors,
-        )
+        return self.async_show_form(step_id="settings", data_schema=_schema(defaults, include_identity=False), errors=errors)
 
     async def async_step_reset_refill_history(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         if user_input is not None:
@@ -113,18 +111,11 @@ class JoJoTankOptionsFlow(config_entries.OptionsFlow):
                     runtime[DATA_REFILL_TIMER] = None
                     store = runtime.get("store")
                     if store is not None:
-                        await store.async_save({
-                            DATA_LAST_REFILL_AMOUNT: 0.0,
-                            DATA_LAST_REFILL_TIME: None,
-                        })
-                    async_dispatcher_send(
-                        self.hass, f"{SIGNAL_UPDATE}_{self.config_entry.entry_id}"
-                    )
+                        await store.async_save({DATA_LAST_REFILL_AMOUNT: 0.0, DATA_LAST_REFILL_TIME: None})
+                    async_dispatcher_send(self.hass, f"{SIGNAL_UPDATE}_{self.config_entry.entry_id}")
             return self.async_create_entry(title="", data=dict(self.config_entry.options))
 
         return self.async_show_form(
             step_id="reset_refill_history",
-            data_schema=vol.Schema({
-                vol.Required(CONF_RESET_REFILL_HISTORY, default=False): bool,
-            }),
+            data_schema=vol.Schema({vol.Required(CONF_RESET_REFILL_HISTORY, default=False): bool}),
         )
