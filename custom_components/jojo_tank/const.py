@@ -1,7 +1,7 @@
 """Constants for the JoJo Tank Monitor integration."""
 
 DOMAIN = "jojo_tank"
-PLATFORMS = ["sensor"]
+PLATFORMS = ["sensor", "binary_sensor"]
 
 CONF_TANK_NAME = "tank_name"
 CONF_MQTT_TOPIC = "mqtt_topic"
