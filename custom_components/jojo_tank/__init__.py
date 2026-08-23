@@ -43,6 +43,14 @@ def _volume_from_payload(payload: dict, entry: ConfigEntry) -> float | None:
         return None
 
 
+def _uptime_from_payload(payload: dict) -> float | None:
+    """Return device uptime when supplied by Rev 6 firmware."""
+    try:
+        return float(payload["uptime_seconds"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if not await mqtt.async_wait_for_mqtt_client(hass):
         return False
@@ -63,6 +71,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         DATA_LAST_REFILL_TIME: last_refill_time,
         DATA_PREVIOUS_VOLUME: None,
         DATA_REFILL_TIMER: None,
+        "previous_uptime": None,
         "store": store,
     }
     hass.data[DOMAIN][entry.entry_id] = runtime
@@ -83,14 +92,49 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_dispatcher_send(hass, f"{SIGNAL_UPDATE}_{entry.entry_id}")
 
     @callback
+    def reset_refill_tracking(volume: float, uptime: float | None) -> None:
+        """Re-baseline refill detection after a device restart."""
+        if cancel := runtime.get(DATA_REFILL_TIMER):
+            cancel()
+        runtime[DATA_REFILLING] = False
+        runtime[DATA_REFILL_TIMER] = None
+        runtime[DATA_PREVIOUS_VOLUME] = volume
+        runtime["previous_uptime"] = uptime
+
+    @callback
     def process_refill(payload: dict) -> None:
         volume = _volume_from_payload(payload, entry)
         if volume is None:
             return
+
+        uptime = _uptime_from_payload(payload)
+        previous_uptime = runtime.get("previous_uptime")
+
+        # Rev 6 publishes uptime_seconds. If uptime moves backwards, the Arduino
+        # has restarted. Treat the first post-restart reading as a new baseline
+        # instead of interpreting the sensor jump as a tank refill.
+        if (
+            uptime is not None
+            and previous_uptime is not None
+            and uptime < previous_uptime
+        ):
+            _LOGGER.info(
+                "JoJo Tank device restart detected (uptime %.0fs -> %.0fs); "
+                "refill detection re-baselined",
+                previous_uptime,
+                uptime,
+            )
+            reset_refill_tracking(volume, uptime)
+            return
+
+        if uptime is not None:
+            runtime["previous_uptime"] = uptime
+
         previous = runtime[DATA_PREVIOUS_VOLUME]
         runtime[DATA_PREVIOUS_VOLUME] = volume
         if previous is None:
             return
+
         increment = volume - previous
         threshold = float(_setting(entry, CONF_REFILL_THRESHOLD, DEFAULT_REFILL_THRESHOLD))
         if increment < threshold:
