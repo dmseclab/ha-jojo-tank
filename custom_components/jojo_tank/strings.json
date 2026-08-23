@@ -14,13 +14,15 @@
           "full_current": "Full calibration current (mA)",
           "sense_resistor": "Sense resistor (ohm)",
           "refill_threshold": "Refill detection threshold (L)",
-          "refill_timeout": "Refill end timeout (minutes)"
+          "refill_timeout": "Refill end timeout (minutes)",
+          "minimum_level": "Minimum water level (%)"
         }
       }
     },
     "error": {
       "full_not_greater_than_empty": "Full current must be greater than empty current.",
-      "must_be_positive": "Value must be greater than zero."
+      "must_be_positive": "Value must be greater than zero.",
+      "minimum_level_range": "Minimum water level must be between 0 and 100%."
     },
     "abort": {"already_configured": "This MQTT tank topic is already configured."}
   },
@@ -28,7 +30,7 @@
     "step": {
       "init": {
         "title": "Tank calibration, dimensions and refill detection",
-        "description": "Change tank dimensions, sensor calibration and refill detection settings. The integration reloads automatically after saving.",
+        "description": "Change tank dimensions, sensor calibration, minimum water level and refill detection settings. The integration reloads automatically after saving.",
         "data": {
           "tank_capacity": "Tank capacity (L)",
           "tank_height": "Tank height (mm)",
@@ -36,13 +38,22 @@
           "full_current": "Full calibration current (mA)",
           "sense_resistor": "Sense resistor (ohm)",
           "refill_threshold": "Refill detection threshold (L)",
-          "refill_timeout": "Refill end timeout (minutes)"
+          "refill_timeout": "Refill end timeout (minutes)",
+          "minimum_level": "Minimum water level (%)"
+        }
+      },
+      "reset_refill_history": {
+        "title": "Reset refill history",
+        "description": "Clear the stored last refill amount and time. This does not change tank calibration, dimensions, MQTT readings or Home Assistant statistics.",
+        "data": {
+          "reset_refill_history": "I understand — reset the stored refill history"
         }
       }
     },
     "error": {
       "full_not_greater_than_empty": "Full current must be greater than empty current.",
-      "must_be_positive": "Value must be greater than zero."
+      "must_be_positive": "Value must be greater than zero.",
+      "minimum_level_range": "Minimum water level must be between 0 and 100%."
     }
   }
 }
