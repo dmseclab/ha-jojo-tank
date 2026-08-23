@@ -14,7 +14,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import CONF_EMPTY_CURRENT, CONF_FULL_CURRENT, CONF_MINIMUM_LEVEL, CONF_SENSE_RESISTOR, CONF_TANK_CAPACITY, CONF_TANK_HEIGHT, CONF_TANK_NAME, DATA_LAST_REFILL_AMOUNT, DATA_LAST_REFILL_TIME, DATA_LATEST, DATA_REFILLING, DOMAIN, SIGNAL_UPDATE
+from .const import CONF_EMPTY_CURRENT, CONF_FULL_CURRENT, CONF_MINIMUM_LEVEL, CONF_SENSE_RESISTOR, CONF_TANK_CAPACITY, CONF_TANK_HEIGHT, CONF_TANK_NAME, DATA_LAST_REFILL_AMOUNT, DATA_LAST_REFILL_TIME, DATA_LATEST, DATA_REFILLING, DEFAULT_MINIMUM_LEVEL, DOMAIN, SIGNAL_UPDATE
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -23,8 +23,12 @@ class JoJoSensorDescription(SensorEntityDescription):
     runtime_key: str | None = None
 
 
-def _setting(entry: ConfigEntry, key: str) -> Any:
-    return entry.options.get(key, entry.data[key])
+def _setting(entry: ConfigEntry, key: str, default: Any = None) -> Any:
+    if key in entry.options:
+        return entry.options[key]
+    if key in entry.data:
+        return entry.data[key]
+    return default
 
 
 def _float(data: dict[str, Any], key: str) -> float | None:
@@ -72,7 +76,7 @@ SENSORS: tuple[JoJoSensorDescription, ...] = (
     JoJoSensorDescription(key="volume", name="Available Water", native_unit_of_measurement=UnitOfVolume.LITERS, device_class=SensorDeviceClass.VOLUME_STORAGE, state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0, value_fn=_volume),
     JoJoSensorDescription(key="depth", name="Water Depth", native_unit_of_measurement=UnitOfLength.MILLIMETERS, device_class=SensorDeviceClass.DISTANCE, state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0, value_fn=_depth),
     JoJoSensorDescription(key="current", name="Sensor Current", native_unit_of_measurement="mA", state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=2, value_fn=_current),
-    JoJoSensorDescription(key="minimum_level", name="Minimum Water Level", native_unit_of_measurement=PERCENTAGE, suggested_display_precision=0, entity_category=EntityCategory.DIAGNOSTIC, value_fn=lambda data, entry: float(_setting(entry, CONF_MINIMUM_LEVEL))),
+    JoJoSensorDescription(key="minimum_level", name="Minimum Water Level", native_unit_of_measurement=PERCENTAGE, suggested_display_precision=0, entity_category=EntityCategory.DIAGNOSTIC, value_fn=lambda data, entry: float(_setting(entry, CONF_MINIMUM_LEVEL, DEFAULT_MINIMUM_LEVEL))),
     JoJoSensorDescription(key="refill_status", name="Refill Status", runtime_key=DATA_REFILLING),
     JoJoSensorDescription(key="last_refill_amount", name="Last Refill Amount", native_unit_of_measurement=UnitOfVolume.LITERS, device_class=SensorDeviceClass.VOLUME, suggested_display_precision=0, runtime_key=DATA_LAST_REFILL_AMOUNT),
     JoJoSensorDescription(key="last_refill_time", name="Last Refill Time", device_class=SensorDeviceClass.TIMESTAMP, runtime_key=DATA_LAST_REFILL_TIME),
