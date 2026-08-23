@@ -61,10 +61,10 @@ def _depth(data: dict[str, Any], entry: ConfigEntry) -> float | None:
     return None if level is None else level / 100.0 * float(_setting(entry, CONF_TANK_HEIGHT))
 
 
-def _friendly_refill_time(value: Any) -> str | None:
-    """Return a compact local-time display while preserving the native timestamp sensor."""
+def _friendly_refill_time(value: Any) -> str:
+    """Return a compact local-time display, or Never when no refill is stored."""
     if not isinstance(value, datetime):
-        return None
+        return "Never"
     return value.astimezone().strftime("%d %b %H:%M")
 
 
