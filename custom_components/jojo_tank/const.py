@@ -12,7 +12,9 @@ CONF_FULL_CURRENT = "full_current"
 CONF_SENSE_RESISTOR = "sense_resistor"
 CONF_REFILL_THRESHOLD = "refill_threshold"
 CONF_REFILL_TIMEOUT = "refill_timeout"
+# Kept as minimum_level internally for backwards compatibility with existing installs.
 CONF_MINIMUM_LEVEL = "minimum_level"
+CONF_ESTIMATION_RESERVE_LEVEL = "estimation_reserve_level"
 
 DEFAULT_TANK_NAME = "JoJo Water Tank"
 DEFAULT_MQTT_TOPIC = "homeassistant/sensor/jojo_tank/state"
@@ -24,6 +26,7 @@ DEFAULT_SENSE_RESISTOR = 120.0
 DEFAULT_REFILL_THRESHOLD = 75.0
 DEFAULT_REFILL_TIMEOUT = 15.0
 DEFAULT_MINIMUM_LEVEL = 20.0
+DEFAULT_ESTIMATION_RESERVE_LEVEL = 10.0
 
 DATA_LATEST = "latest"
 DATA_UNSUB = "unsub"
