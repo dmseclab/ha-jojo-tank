@@ -86,7 +86,16 @@ class JoJoTankConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class JoJoTankOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        return self.async_show_menu(step_id="init", menu_options=["settings", "reset_refill_history"])
+        # Use explicit labels here rather than translated list entries. This keeps
+        # the options menu reliable for custom integrations across HA frontend
+        # translation-cache/version differences.
+        return self.async_show_menu(
+            step_id="init",
+            menu_options={
+                "settings": "Tank Settings",
+                "reset_refill_history": "Clear Refill Data",
+            },
+        )
 
     async def async_step_settings(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         errors: dict[str, str] = {}
