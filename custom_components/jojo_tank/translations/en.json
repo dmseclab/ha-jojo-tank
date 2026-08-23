@@ -33,23 +33,12 @@
   "options": {
     "step": {
       "init": {
-        "title": "Tank settings",
-        "description": "Change tank dimensions, sensor calibration, low-water alert, estimation reserve and refill detection settings. The integration reloads automatically after saving.",
-        "data": {
-          "tank_capacity": "Tank capacity (L)",
-          "tank_height": "Tank height (mm)",
-          "empty_current": "Empty calibration current (mA)",
-          "full_current": "Full calibration current (mA)",
-          "sense_resistor": "Sense resistor (ohm)",
-          "refill_threshold": "Refill detection threshold (L)",
-          "refill_timeout": "Refill end timeout (minutes)",
-          "minimum_level": "Low water level (%)",
-          "estimation_reserve_level": "Estimation reserve level (%)"
-        }
+        "title": "Tank calibration, dimensions and refill detection",
+        "description": "Choose what you would like to configure."
       },
       "settings": {
-        "title": "Tank settings",
-        "description": "Low Water Level controls the warning sensor. Estimation Reserve Level is independent and will be used for days-remaining calculations.",
+        "title": "Tank Settings",
+        "description": "Low Water Level controls the warning sensor. Estimation Reserve Level is independent and is used for water-remaining estimates.",
         "data": {
           "tank_capacity": "Tank capacity (L)",
           "tank_height": "Tank height (mm)",
@@ -63,11 +52,17 @@
         }
       },
       "reset_refill_history": {
-        "title": "Reset refill history",
+        "title": "Clear Refill Data",
         "description": "Clear the stored last refill amount and time. This does not change tank calibration, dimensions, MQTT readings or Home Assistant statistics.",
         "data": {
-          "reset_refill_history": "I understand — reset the stored refill history"
+          "reset_refill_history": "I understand — clear the stored refill data"
         }
+      }
+    },
+    "menu": {
+      "init": {
+        "settings": "Tank Settings",
+        "reset_refill_history": "Clear Refill Data"
       }
     },
     "error": {
