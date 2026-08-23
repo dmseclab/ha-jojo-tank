@@ -15,22 +15,28 @@
           "sense_resistor": "Sense resistor (ohm)",
           "refill_threshold": "Refill detection threshold (L)",
           "refill_timeout": "Refill end timeout (minutes)",
-          "minimum_level": "Minimum water level (%)"
+          "minimum_level": "Low water level (%)",
+          "estimation_reserve_level": "Estimation reserve level (%)"
         }
       }
     },
     "error": {
       "full_not_greater_than_empty": "Full current must be greater than empty current.",
       "must_be_positive": "Value must be greater than zero.",
-      "minimum_level_range": "Minimum water level must be between 0 and 100%."
+      "minimum_level_range": "Low water level must be between 0 and 100%.",
+      "estimation_reserve_level_range": "Estimation reserve level must be between 0 and 100%."
     },
     "abort": {"already_configured": "This MQTT tank topic is already configured."}
   },
   "options": {
     "step": {
       "init": {
-        "title": "Tank calibration, dimensions and refill detection",
-        "description": "Change tank dimensions, sensor calibration, minimum water level and refill detection settings. The integration reloads automatically after saving.",
+        "title": "Tank settings",
+        "description": "Change tank dimensions, sensor calibration, low-water alert, estimation reserve and refill detection settings. The integration reloads automatically after saving."
+      },
+      "settings": {
+        "title": "Tank settings",
+        "description": "Low Water Level controls the warning sensor. Estimation Reserve Level is independent and will be used for days-remaining calculations.",
         "data": {
           "tank_capacity": "Tank capacity (L)",
           "tank_height": "Tank height (mm)",
@@ -39,7 +45,8 @@
           "sense_resistor": "Sense resistor (ohm)",
           "refill_threshold": "Refill detection threshold (L)",
           "refill_timeout": "Refill end timeout (minutes)",
-          "minimum_level": "Minimum water level (%)"
+          "minimum_level": "Low water level (%)",
+          "estimation_reserve_level": "Estimation reserve level (%)"
         }
       },
       "reset_refill_history": {
@@ -53,7 +60,8 @@
     "error": {
       "full_not_greater_than_empty": "Full current must be greater than empty current.",
       "must_be_positive": "Value must be greater than zero.",
-      "minimum_level_range": "Minimum water level must be between 0 and 100%."
+      "minimum_level_range": "Low water level must be between 0 and 100%.",
+      "estimation_reserve_level_range": "Estimation reserve level must be between 0 and 100%."
     }
   }
 }
