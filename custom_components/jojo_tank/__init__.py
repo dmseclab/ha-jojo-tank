@@ -18,11 +18,14 @@ from .const import (
     CONF_REFILL_TIMEOUT, CONF_SENSE_RESISTOR, CONF_TANK_CAPACITY,
     DATA_LAST_REFILL_AMOUNT, DATA_LAST_REFILL_TIME, DATA_LATEST,
     DATA_PREVIOUS_VOLUME, DATA_REFILLING, DATA_REFILL_TIMER, DATA_UNSUB,
+    DATA_REFILL_HISTORY, DATA_REFILL_START_VOLUME, DATA_REFILL_END_VOLUME,
     DEFAULT_REFILL_THRESHOLD, DEFAULT_REFILL_TIMEOUT, DOMAIN, PLATFORMS, SIGNAL_UPDATE,
 )
 
 _LOGGER = logging.getLogger(__name__)
 STORAGE_VERSION = 1
+MAX_REFILL_HISTORY = 100
+REFILL_HISTORY_DAYS = 60
 
 
 def _setting(entry: ConfigEntry, key: str, default=None):
@@ -51,6 +54,26 @@ def _uptime_from_payload(payload: dict) -> float | None:
         return None
 
 
+def _load_refill_history(saved: dict) -> list[dict]:
+    history = saved.get(DATA_REFILL_HISTORY, [])
+    if not isinstance(history, list):
+        return []
+    cutoff = datetime.now(timezone.utc) - timedelta(days=REFILL_HISTORY_DAYS)
+    valid = []
+    for event in history:
+        if not isinstance(event, dict):
+            continue
+        try:
+            event_time = datetime.fromisoformat(event["time"])
+            if event_time.tzinfo is None:
+                event_time = event_time.replace(tzinfo=timezone.utc)
+        except (KeyError, TypeError, ValueError):
+            continue
+        if event_time >= cutoff:
+            valid.append(event)
+    return valid[-MAX_REFILL_HISTORY:]
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if not await mqtt.async_wait_for_mqtt_client(hass):
         return False
@@ -69,6 +92,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         DATA_REFILLING: False,
         DATA_LAST_REFILL_AMOUNT: float(saved.get(DATA_LAST_REFILL_AMOUNT, 0.0)),
         DATA_LAST_REFILL_TIME: last_refill_time,
+        DATA_REFILL_HISTORY: _load_refill_history(saved),
+        DATA_REFILL_START_VOLUME: None,
+        DATA_REFILL_END_VOLUME: None,
         DATA_PREVIOUS_VOLUME: None,
         DATA_REFILL_TIMER: None,
         "previous_uptime": None,
@@ -82,12 +108,40 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             DATA_LAST_REFILL_AMOUNT: runtime[DATA_LAST_REFILL_AMOUNT],
             DATA_LAST_REFILL_TIME: runtime[DATA_LAST_REFILL_TIME].isoformat()
             if runtime[DATA_LAST_REFILL_TIME] else None,
+            DATA_REFILL_HISTORY: runtime[DATA_REFILL_HISTORY],
         })
 
     @callback
     def finish_refill(_now=None) -> None:
+        if runtime[DATA_REFILLING]:
+            start_volume = runtime.get(DATA_REFILL_START_VOLUME)
+            end_volume = runtime.get(DATA_REFILL_END_VOLUME)
+            refill_time = runtime.get(DATA_LAST_REFILL_TIME)
+            if start_volume is not None and end_volume is not None and refill_time is not None:
+                event = {
+                    "time": refill_time.isoformat(),
+                    "start_l": round(float(start_volume)),
+                    "end_l": round(float(end_volume)),
+                    "amount_l": round(max(0.0, float(end_volume) - float(start_volume))),
+                }
+                cutoff = datetime.now(timezone.utc) - timedelta(days=REFILL_HISTORY_DAYS)
+                history = []
+                for existing in runtime[DATA_REFILL_HISTORY]:
+                    try:
+                        existing_time = datetime.fromisoformat(existing["time"])
+                        if existing_time.tzinfo is None:
+                            existing_time = existing_time.replace(tzinfo=timezone.utc)
+                    except (KeyError, TypeError, ValueError):
+                        continue
+                    if existing_time >= cutoff:
+                        history.append(existing)
+                history.append(event)
+                runtime[DATA_REFILL_HISTORY] = history[-MAX_REFILL_HISTORY:]
+                runtime[DATA_LAST_REFILL_AMOUNT] = float(event["amount_l"])
         runtime[DATA_REFILLING] = False
         runtime[DATA_REFILL_TIMER] = None
+        runtime[DATA_REFILL_START_VOLUME] = None
+        runtime[DATA_REFILL_END_VOLUME] = None
         hass.async_create_task(save_refill_history())
         async_dispatcher_send(hass, f"{SIGNAL_UPDATE}_{entry.entry_id}")
 
@@ -98,6 +152,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             cancel()
         runtime[DATA_REFILLING] = False
         runtime[DATA_REFILL_TIMER] = None
+        runtime[DATA_REFILL_START_VOLUME] = None
+        runtime[DATA_REFILL_END_VOLUME] = None
         runtime[DATA_PREVIOUS_VOLUME] = volume
         runtime["previous_uptime"] = uptime
 
@@ -110,19 +166,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         uptime = _uptime_from_payload(payload)
         previous_uptime = runtime.get("previous_uptime")
 
-        # Rev 6 publishes uptime_seconds. If uptime moves backwards, the Arduino
-        # has restarted. Treat the first post-restart reading as a new baseline
-        # instead of interpreting the sensor jump as a tank refill.
-        if (
-            uptime is not None
-            and previous_uptime is not None
-            and uptime < previous_uptime
-        ):
+        if uptime is not None and previous_uptime is not None and uptime < previous_uptime:
             _LOGGER.info(
-                "JoJo Tank device restart detected (uptime %.0fs -> %.0fs); "
-                "refill detection re-baselined",
-                previous_uptime,
-                uptime,
+                "JoJo Tank device restart detected (uptime %.0fs -> %.0fs); refill detection re-baselined",
+                previous_uptime, uptime,
             )
             reset_refill_tracking(volume, uptime)
             return
@@ -144,20 +191,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         capacity = float(_setting(entry, CONF_TANK_CAPACITY))
         if not runtime[DATA_REFILLING]:
             runtime[DATA_REFILLING] = True
+            runtime[DATA_REFILL_START_VOLUME] = previous
+            runtime[DATA_REFILL_END_VOLUME] = volume
             runtime[DATA_LAST_REFILL_AMOUNT] = min(float(increment), capacity)
             runtime[DATA_LAST_REFILL_TIME] = datetime.now(timezone.utc)
         else:
+            runtime[DATA_REFILL_END_VOLUME] = max(float(runtime[DATA_REFILL_END_VOLUME] or volume), volume)
             runtime[DATA_LAST_REFILL_AMOUNT] = min(
-                float(runtime[DATA_LAST_REFILL_AMOUNT]) + float(increment), capacity
+                max(0.0, float(runtime[DATA_REFILL_END_VOLUME]) - float(runtime[DATA_REFILL_START_VOLUME])), capacity
             )
 
         hass.async_create_task(save_refill_history())
         if cancel := runtime.get(DATA_REFILL_TIMER):
             cancel()
         timeout = float(_setting(entry, CONF_REFILL_TIMEOUT, DEFAULT_REFILL_TIMEOUT))
-        runtime[DATA_REFILL_TIMER] = async_call_later(
-            hass, timedelta(minutes=timeout), finish_refill
-        )
+        runtime[DATA_REFILL_TIMER] = async_call_later(hass, timedelta(minutes=timeout), finish_refill)
 
     @callback
     def message_received(msg: mqtt.ReceiveMessage) -> None:
@@ -173,9 +221,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         process_refill(payload)
         async_dispatcher_send(hass, f"{SIGNAL_UPDATE}_{entry.entry_id}")
 
-    runtime[DATA_UNSUB] = await mqtt.async_subscribe(
-        hass, entry.data[CONF_MQTT_TOPIC], message_received, qos=0
-    )
+    runtime[DATA_UNSUB] = await mqtt.async_subscribe(hass, entry.data[CONF_MQTT_TOPIC], message_received, qos=0)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
