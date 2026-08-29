@@ -14,7 +14,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import CONF_EMPTY_CURRENT, CONF_ESTIMATION_RESERVE_LEVEL, CONF_FULL_CURRENT, CONF_MINIMUM_LEVEL, CONF_SENSE_RESISTOR, CONF_TANK_CAPACITY, CONF_TANK_HEIGHT, CONF_TANK_NAME, DATA_LAST_REFILL_AMOUNT, DATA_LAST_REFILL_TIME, DATA_LATEST, DATA_REFILLING, DEFAULT_ESTIMATION_RESERVE_LEVEL, DEFAULT_MINIMUM_LEVEL, DOMAIN, SIGNAL_UPDATE
+from .const import CONF_EMPTY_CURRENT, CONF_ESTIMATION_RESERVE_LEVEL, CONF_FULL_CURRENT, CONF_MINIMUM_LEVEL, CONF_SENSE_RESISTOR, CONF_TANK_CAPACITY, CONF_TANK_HEIGHT, CONF_TANK_NAME, DATA_LAST_REFILL_AMOUNT, DATA_LAST_REFILL_TIME, DATA_LATEST, DATA_REFILLING, DATA_REFILL_HISTORY, DEFAULT_ESTIMATION_RESERVE_LEVEL, DEFAULT_MINIMUM_LEVEL, DOMAIN, SIGNAL_UPDATE
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -76,16 +76,16 @@ SENSORS: tuple[JoJoSensorDescription, ...] = (
     JoJoSensorDescription(key="volume", name="Available Water", native_unit_of_measurement=UnitOfVolume.LITERS, device_class=SensorDeviceClass.VOLUME_STORAGE, state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0, value_fn=_volume),
     JoJoSensorDescription(key="depth", name="Water Depth", native_unit_of_measurement=UnitOfLength.MILLIMETERS, device_class=SensorDeviceClass.DISTANCE, state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0, value_fn=_depth),
     JoJoSensorDescription(key="current", name="Sensor Current", native_unit_of_measurement="mA", state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=2, value_fn=_current),
-    # Keep the existing unique key so upgrades do not create a duplicate entity.
     JoJoSensorDescription(key="minimum_level", name="Low Water Level", native_unit_of_measurement=PERCENTAGE, suggested_display_precision=0, entity_category=EntityCategory.DIAGNOSTIC, value_fn=lambda data, entry: float(_setting(entry, CONF_MINIMUM_LEVEL, DEFAULT_MINIMUM_LEVEL))),
     JoJoSensorDescription(key="estimation_reserve_level", name="Estimation Reserve Level", native_unit_of_measurement=PERCENTAGE, suggested_display_precision=0, entity_category=EntityCategory.DIAGNOSTIC, value_fn=lambda data, entry: float(_setting(entry, CONF_ESTIMATION_RESERVE_LEVEL, DEFAULT_ESTIMATION_RESERVE_LEVEL))),
     JoJoSensorDescription(key="refill_status", name="Refill Status", runtime_key=DATA_REFILLING),
     JoJoSensorDescription(key="last_refill_amount", name="Last Refill Amount", native_unit_of_measurement=UnitOfVolume.LITERS, device_class=SensorDeviceClass.VOLUME, suggested_display_precision=0, runtime_key=DATA_LAST_REFILL_AMOUNT),
     JoJoSensorDescription(key="last_refill_time", name="Last Refill Time", device_class=SensorDeviceClass.TIMESTAMP, runtime_key=DATA_LAST_REFILL_TIME),
     JoJoSensorDescription(key="last_refill", name="Last Refill", runtime_key=DATA_LAST_REFILL_TIME),
+    JoJoSensorDescription(key="refill_history", name="Refill History", runtime_key=DATA_REFILL_HISTORY, icon="mdi:table-clock"),
     JoJoSensorDescription(key="raw_adc", name="Raw ADC", state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0, value_fn=lambda data, entry: _float(data, "raw_adc")),
     JoJoSensorDescription(key="voltage", name="Sensor Voltage", native_unit_of_measurement=UnitOfElectricPotential.MILLIVOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0, value_fn=lambda data, entry: _float(data, "voltage_mv")),
-    JoJoSensorDescription(key="wifi", name="Wi-Fi Signal", native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT, device_class=SensorDeviceClass.SIGNAL_STRENGTH, state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0, entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False, value_fn=lambda data, entry: _float(data, "wifi_rssi")),
+    JoJoSensorDescription(key="wifi", name="Wi-Fi Signal", native_unit_of_measurement=SIGNAL_STRENGTH_DECIBEL_MILLIWATT if False else SIGNAL_STRENGTH_DECIBELS_MILLIWATT, device_class=SensorDeviceClass.SIGNAL_STRENGTH, state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0, entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False, value_fn=lambda data, entry: _float(data, "wifi_rssi")),
     JoJoSensorDescription(key="uptime", name="Uptime", native_unit_of_measurement=UnitOfTime.SECONDS, device_class=SensorDeviceClass.DURATION, entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False, value_fn=lambda data, entry: _float(data, "uptime_seconds")),
     JoJoSensorDescription(key="firmware", name="Firmware", entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False, value_fn=lambda data, entry: data.get("firmware")),
     JoJoSensorDescription(key="last_reading", name="Last Reading", device_class=SensorDeviceClass.TIMESTAMP, value_fn=lambda data, entry: datetime.now(timezone.utc) if data else None),
@@ -110,12 +110,17 @@ class JoJoTankSensor(SensorEntity):
     @callback
     def _update_value(self) -> None:
         runtime = self.hass.data[DOMAIN][self.entry.entry_id]
+        self._attr_extra_state_attributes = None
         if self.entity_description.runtime_key is not None:
             value = runtime.get(self.entity_description.runtime_key)
             if self.entity_description.key == "refill_status":
                 value = "Refilling" if value else "Not Refilling"
             elif self.entity_description.key == "last_refill":
                 value = _friendly_refill_time(value)
+            elif self.entity_description.key == "refill_history":
+                history = value if isinstance(value, list) else []
+                value = len(history)
+                self._attr_extra_state_attributes = {"events": list(reversed(history))}
         else:
             data = runtime[DATA_LATEST]
             value = self.entity_description.value_fn(data, self.entry) if self.entity_description.value_fn else None
