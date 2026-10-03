@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections import deque
 from datetime import datetime, timedelta, timezone
 
 from homeassistant.components import mqtt
@@ -26,6 +27,10 @@ _LOGGER = logging.getLogger(__name__)
 STORAGE_VERSION = 1
 MAX_REFILL_HISTORY = 100
 REFILL_HISTORY_DAYS = 60
+REFILL_FILTER_SAMPLES = 5
+REFILL_CONFIRM_SAMPLES = 3
+REFILL_BASELINE_WINDOW = 12
+REFILL_NOISE_FLOOR_PERCENT = 4.0
 
 
 def _setting(entry: ConfigEntry, key: str, default=None):
@@ -98,6 +103,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         DATA_PREVIOUS_VOLUME: None,
         DATA_REFILL_TIMER: None,
         "previous_uptime": None,
+        "volume_samples": deque(maxlen=REFILL_FILTER_SAMPLES),
+        "baseline_samples": deque(maxlen=REFILL_BASELINE_WINDOW),
+        "refill_candidate_count": 0,
+        "refill_candidate_start": None,
         "store": store,
     }
     hass.data[DOMAIN][entry.entry_id] = runtime
@@ -142,6 +151,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         runtime[DATA_REFILL_TIMER] = None
         runtime[DATA_REFILL_START_VOLUME] = None
         runtime[DATA_REFILL_END_VOLUME] = None
+        runtime["refill_candidate_count"] = 0
+        runtime["refill_candidate_start"] = None
+        # Re-baseline at the settled post-refill level. Without this, the
+        # pre-refill low-water envelope can immediately create a duplicate
+        # event after the close-out timer expires.
+        if runtime["volume_samples"]:
+            settled = sorted(runtime["volume_samples"])[len(runtime["volume_samples"]) // 2]
+            runtime["baseline_samples"].clear()
+            runtime["baseline_samples"].append(settled)
         hass.async_create_task(save_refill_history())
         async_dispatcher_send(hass, f"{SIGNAL_UPDATE}_{entry.entry_id}")
 
@@ -156,9 +174,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         runtime[DATA_REFILL_END_VOLUME] = None
         runtime[DATA_PREVIOUS_VOLUME] = volume
         runtime["previous_uptime"] = uptime
+        runtime["volume_samples"].clear()
+        runtime["baseline_samples"].clear()
+        runtime["volume_samples"].append(volume)
+        runtime["baseline_samples"].append(volume)
+        runtime["refill_candidate_count"] = 0
+        runtime["refill_candidate_start"] = None
 
     @callback
     def process_refill(payload: dict) -> None:
+        """Detect sustained refills while rejecting short sensor recovery/noise."""
         volume = _volume_from_payload(payload, entry)
         if volume is None:
             return
@@ -177,35 +202,126 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if uptime is not None:
             runtime["previous_uptime"] = uptime
 
-        previous = runtime[DATA_PREVIOUS_VOLUME]
-        runtime[DATA_PREVIOUS_VOLUME] = volume
-        if previous is None:
+        # Five readings (normally ~25 minutes with Rev 6 firmware) are reduced
+        # to their median.  A single thermal/noise excursion therefore cannot
+        # become a refill event.
+        samples = runtime["volume_samples"]
+        samples.append(volume)
+        if len(samples) < REFILL_FILTER_SAMPLES:
+            runtime[DATA_PREVIOUS_VOLUME] = volume
             return
 
-        increment = volume - previous
-        threshold = float(_setting(entry, CONF_REFILL_THRESHOLD, DEFAULT_REFILL_THRESHOLD))
-        if increment < threshold:
+        ordered = sorted(samples)
+        filtered_volume = ordered[len(ordered) // 2]
+        runtime[DATA_PREVIOUS_VOLUME] = filtered_volume
+
+        baseline_samples = runtime["baseline_samples"]
+        if not baseline_samples:
+            baseline_samples.append(filtered_volume)
             return
 
-        increment = round(increment)
+        # After a refill has been confirmed, follow its filtered high-water
+        # mark without demanding another full threshold jump.  This preserves
+        # the final refill amount while the close-out timer handles completion.
+        if runtime[DATA_REFILLING]:
+            old_end = float(runtime[DATA_REFILL_END_VOLUME] or filtered_volume)
+            if filtered_volume > old_end:
+                runtime[DATA_REFILL_END_VOLUME] = filtered_volume
+                capacity = float(_setting(entry, CONF_TANK_CAPACITY))
+                runtime[DATA_LAST_REFILL_AMOUNT] = min(
+                    max(
+                        0.0,
+                        filtered_volume - float(runtime[DATA_REFILL_START_VOLUME]),
+                    ),
+                    capacity,
+                )
+                hass.async_create_task(save_refill_history())
+                if filtered_volume - old_end >= 10.0:
+                    if cancel := runtime.get(DATA_REFILL_TIMER):
+                        cancel()
+                    timeout = float(
+                        _setting(entry, CONF_REFILL_TIMEOUT, DEFAULT_REFILL_TIMEOUT)
+                    )
+                    runtime[DATA_REFILL_TIMER] = async_call_later(
+                        hass, timedelta(minutes=timeout), finish_refill
+                    )
+            return
+
+        # The baseline is the recent low-water envelope, not the immediately
+        # preceding sample.  This makes refill detection depend on a sustained
+        # net rise rather than one upward step.
+        baseline = min(baseline_samples)
+        configured_threshold = float(
+            _setting(entry, CONF_REFILL_THRESHOLD, DEFAULT_REFILL_THRESHOLD)
+        )
         capacity = float(_setting(entry, CONF_TANK_CAPACITY))
+        # Seven days of field data showed sustained thermal/measurement recovery
+        # approaching 200 L even after median filtering.  Keep the user's
+        # threshold, but never let refill detection operate inside that measured
+        # noise envelope.  Four percent is 210 L on the reference 5,250 L tank.
+        threshold = max(
+            configured_threshold,
+            capacity * REFILL_NOISE_FLOOR_PERCENT / 100.0,
+        )
+        rise = filtered_volume - baseline
+
+        if rise >= threshold:
+            if runtime["refill_candidate_start"] is None:
+                runtime["refill_candidate_start"] = baseline
+                runtime["refill_candidate_count"] = 1
+            else:
+                runtime["refill_candidate_count"] += 1
+        else:
+            runtime["refill_candidate_count"] = 0
+            runtime["refill_candidate_start"] = None
+            baseline_samples.append(filtered_volume)
+            return
+
+        # Require three consecutive filtered confirmations.  With the normal
+        # five-minute publish interval this is roughly 15 minutes of evidence.
+        if runtime["refill_candidate_count"] < REFILL_CONFIRM_SAMPLES:
+            return
+
+        start_volume = float(runtime["refill_candidate_start"])
+        capacity = float(_setting(entry, CONF_TANK_CAPACITY))
+        now = datetime.now(timezone.utc)
+
         if not runtime[DATA_REFILLING]:
             runtime[DATA_REFILLING] = True
-            runtime[DATA_REFILL_START_VOLUME] = previous
-            runtime[DATA_REFILL_END_VOLUME] = volume
-            runtime[DATA_LAST_REFILL_AMOUNT] = min(float(increment), capacity)
-            runtime[DATA_LAST_REFILL_TIME] = datetime.now(timezone.utc)
-        else:
-            runtime[DATA_REFILL_END_VOLUME] = max(float(runtime[DATA_REFILL_END_VOLUME] or volume), volume)
+            runtime[DATA_REFILL_START_VOLUME] = start_volume
+            runtime[DATA_REFILL_END_VOLUME] = filtered_volume
             runtime[DATA_LAST_REFILL_AMOUNT] = min(
-                max(0.0, float(runtime[DATA_REFILL_END_VOLUME]) - float(runtime[DATA_REFILL_START_VOLUME])), capacity
+                max(0.0, filtered_volume - start_volume), capacity
             )
+            runtime[DATA_LAST_REFILL_TIME] = now
+        else:
+            runtime[DATA_REFILL_END_VOLUME] = max(
+                float(runtime[DATA_REFILL_END_VOLUME] or filtered_volume),
+                filtered_volume,
+            )
+            runtime[DATA_LAST_REFILL_AMOUNT] = min(
+                max(
+                    0.0,
+                    float(runtime[DATA_REFILL_END_VOLUME])
+                    - float(runtime[DATA_REFILL_START_VOLUME]),
+                ),
+                capacity,
+            )
+
+        # Once confirmed, keep the recent envelope close to the new level so
+        # normal oscillation around that level cannot repeatedly retrigger.
+        baseline_samples.clear()
+        baseline_samples.append(filtered_volume)
+        runtime["refill_candidate_count"] = 0
+        runtime["refill_candidate_start"] = None
 
         hass.async_create_task(save_refill_history())
         if cancel := runtime.get(DATA_REFILL_TIMER):
             cancel()
         timeout = float(_setting(entry, CONF_REFILL_TIMEOUT, DEFAULT_REFILL_TIMEOUT))
-        runtime[DATA_REFILL_TIMER] = async_call_later(hass, timedelta(minutes=timeout), finish_refill)
+        runtime[DATA_REFILL_TIMER] = async_call_later(
+            hass, timedelta(minutes=timeout), finish_refill
+        )
 
     @callback
     def message_received(msg: mqtt.ReceiveMessage) -> None:
