@@ -151,6 +151,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         runtime[DATA_REFILL_TIMER] = None
         runtime[DATA_REFILL_START_VOLUME] = None
         runtime[DATA_REFILL_END_VOLUME] = None
+        runtime["refill_candidate_count"] = 0
+        runtime["refill_candidate_start"] = None
+        # Re-baseline at the settled post-refill level. Without this, the
+        # pre-refill low-water envelope can immediately create a duplicate
+        # event after the close-out timer expires.
+        if runtime["volume_samples"]:
+            settled = sorted(runtime["volume_samples"])[len(runtime["volume_samples"]) // 2]
+            runtime["baseline_samples"].clear()
+            runtime["baseline_samples"].append(settled)
         hass.async_create_task(save_refill_history())
         async_dispatcher_send(hass, f"{SIGNAL_UPDATE}_{entry.entry_id}")
 
@@ -236,7 +245,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     runtime[DATA_REFILL_TIMER] = async_call_later(
                         hass, timedelta(minutes=timeout), finish_refill
                     )
-            baseline_samples.append(filtered_volume)
             return
 
         # The baseline is the recent low-water envelope, not the immediately
