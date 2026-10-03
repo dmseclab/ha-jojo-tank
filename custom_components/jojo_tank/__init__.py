@@ -210,6 +210,34 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             baseline_samples.append(filtered_volume)
             return
 
+        # After a refill has been confirmed, follow its filtered high-water
+        # mark without demanding another full threshold jump.  This preserves
+        # the final refill amount while the close-out timer handles completion.
+        if runtime[DATA_REFILLING]:
+            old_end = float(runtime[DATA_REFILL_END_VOLUME] or filtered_volume)
+            if filtered_volume > old_end:
+                runtime[DATA_REFILL_END_VOLUME] = filtered_volume
+                capacity = float(_setting(entry, CONF_TANK_CAPACITY))
+                runtime[DATA_LAST_REFILL_AMOUNT] = min(
+                    max(
+                        0.0,
+                        filtered_volume - float(runtime[DATA_REFILL_START_VOLUME]),
+                    ),
+                    capacity,
+                )
+                hass.async_create_task(save_refill_history())
+                if filtered_volume - old_end >= 10.0:
+                    if cancel := runtime.get(DATA_REFILL_TIMER):
+                        cancel()
+                    timeout = float(
+                        _setting(entry, CONF_REFILL_TIMEOUT, DEFAULT_REFILL_TIMEOUT)
+                    )
+                    runtime[DATA_REFILL_TIMER] = async_call_later(
+                        hass, timedelta(minutes=timeout), finish_refill
+                    )
+            baseline_samples.append(filtered_volume)
+            return
+
         # The baseline is the recent low-water envelope, not the immediately
         # preceding sample.  This makes refill detection depend on a sustained
         # net rise rather than one upward step.
