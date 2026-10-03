@@ -30,6 +30,7 @@ REFILL_HISTORY_DAYS = 60
 REFILL_FILTER_SAMPLES = 5
 REFILL_CONFIRM_SAMPLES = 3
 REFILL_BASELINE_WINDOW = 12
+REFILL_NOISE_FLOOR_PERCENT = 4.0
 
 
 def _setting(entry: ConfigEntry, key: str, default=None):
@@ -242,7 +243,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # preceding sample.  This makes refill detection depend on a sustained
         # net rise rather than one upward step.
         baseline = min(baseline_samples)
-        threshold = float(_setting(entry, CONF_REFILL_THRESHOLD, DEFAULT_REFILL_THRESHOLD))
+        configured_threshold = float(
+            _setting(entry, CONF_REFILL_THRESHOLD, DEFAULT_REFILL_THRESHOLD)
+        )
+        capacity = float(_setting(entry, CONF_TANK_CAPACITY))
+        # Seven days of field data showed sustained thermal/measurement recovery
+        # approaching 200 L even after median filtering.  Keep the user's
+        # threshold, but never let refill detection operate inside that measured
+        # noise envelope.  Four percent is 210 L on the reference 5,250 L tank.
+        threshold = max(
+            configured_threshold,
+            capacity * REFILL_NOISE_FLOOR_PERCENT / 100.0,
+        )
         rise = filtered_volume - baseline
 
         if rise >= threshold:
