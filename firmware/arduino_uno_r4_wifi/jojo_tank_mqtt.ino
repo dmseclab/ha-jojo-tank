@@ -1,5 +1,5 @@
 /***********************************************************
- * JoJo Water Tank Raw Sensor Monitor - Revision 6
+ * JoJo Water Tank Raw Sensor Monitor - Revision 6.1
  * Hardware : Arduino UNO R4 WiFi + DFRobot SEN0262
  * Protocol : MQTT -> Home Assistant Auto-Discovery
  *
@@ -27,17 +27,21 @@ const char* MQTT_PASS     = "YOUR_MQTT_PASSWORD";
 // =============================================
 // DEVICE CONFIG
 // =============================================
-#define FIRMWARE_VERSION         "6.0.0"
+#define FIRMWARE_VERSION         "6.1.0"
 #define MQTT_CLIENT_ID           "arduino_jojo_tank"
 #define ANALOG_PIN               A2
 #define VREF_MV                  5000.0f
 #define SENSE_RESISTOR_OHM       120.0f
 #define ADC_MAX_VALUE            1023.0f
+#define ADC_RESOLUTION_BITS      10
 #define ADC_SAMPLES              20
 #define ADC_SAMPLE_DELAY_MS      10
 #define SEND_INTERVAL            300000UL
 #define WIFI_RETRY_INTERVAL      10000UL
 #define MQTT_RETRY_INTERVAL      10000UL
+// Keep true for existing discovery-based dashboards. Set false for a fresh
+// custom-integration-only install; it does not delete retained discovery data.
+#define ENABLE_MQTT_DISCOVERY    true
 
 #define MQTT_STATE_TOPIC         "homeassistant/sensor/jojo_tank/state"
 #define MQTT_DISC_RAW_ADC        "homeassistant/sensor/jojo_tank_raw_adc/config"
@@ -143,24 +147,25 @@ void publishDiscovery() {
   discoveryPublished = true; Serial.println("Discovery complete.");
 }
 
-int readAveragedADC() {
+float readAveragedADC() {
   unsigned long total = 0;
   for (int i = 0; i < ADC_SAMPLES; i++) { total += analogRead(ANALOG_PIN); delay(ADC_SAMPLE_DELAY_MS); }
-  return (int)(total / ADC_SAMPLES);
+  return (float)total / ADC_SAMPLES;
 }
 
 void readAndPublish() {
   if (!mqttClient.connected()) return;
-  int raw = readAveragedADC();
+  float raw = readAveragedADC();
   float voltageMv = (raw / ADC_MAX_VALUE) * VREF_MV;
   float currentRawMa = voltageMv / SENSE_RESISTOR_OHM;
   long wifiRssi = WiFi.RSSI(); unsigned long uptimeSeconds = millis() / 1000UL;
-  Serial.print("Raw ADC: "); Serial.print(raw); Serial.print(" | Voltage: "); Serial.print(voltageMv, 0);
+  Serial.print("Raw ADC: "); Serial.print(raw, 2); Serial.print(" | Voltage: "); Serial.print(voltageMv, 2);
   Serial.print(" mV | Current: "); Serial.print(currentRawMa, 2); Serial.print(" mA | RSSI: ");
   Serial.print(wifiRssi); Serial.println(" dBm");
   StaticJsonDocument<320> doc;
-  doc["raw_adc"] = raw; doc["voltage_mv"] = round(voltageMv);
-  doc["current_raw_ma"] = round(currentRawMa * 100.0f) / 100.0f;
+  doc["raw_adc"] = raw;
+  doc["voltage_mv"] = round(voltageMv * 100.0f) / 100.0f;
+  doc["current_raw_ma"] = round(currentRawMa * 10000.0f) / 10000.0f;
   doc["wifi_rssi"] = wifiRssi; doc["uptime_seconds"] = uptimeSeconds; doc["firmware"] = FIRMWARE_VERSION;
   char payload[320]; size_t length = serializeJson(doc, payload, sizeof(payload));
   mqttClient.beginMessage(MQTT_STATE_TOPIC, length, true); mqttClient.write((const uint8_t*)payload, length); mqttClient.endMessage();
@@ -169,11 +174,13 @@ void readAndPublish() {
 
 void setup() {
   Serial.begin(9600); delay(1500); pinMode(ANALOG_PIN, INPUT);
+  // Explicitly preserve the existing scale for this first comparison reflash.
+  analogReadResolution(ADC_RESOLUTION_BITS);
   Serial.println("========================================"); Serial.println("JoJo Tank Raw Monitor - Revision 6");
   Serial.print("Firmware: "); Serial.println(FIRMWARE_VERSION); Serial.println("Publish interval: 5 minutes");
   Serial.println("Calibration is handled by Home Assistant"); Serial.println("========================================");
   connectWiFi();
-  if (connectMQTT()) { publishDiscovery(); readAndPublish(); lastSend = millis(); }
+  if (connectMQTT()) { if (ENABLE_MQTT_DISCOVERY) publishDiscovery(); else discoveryPublished = true; readAndPublish(); lastSend = millis(); }
 }
 
 void loop() {
@@ -181,7 +188,7 @@ void loop() {
   if (WiFi.status() == WL_CONNECTED && !mqttClient.connected()) connectMQTT();
   if (mqttClient.connected()) {
     mqttClient.poll();
-    if (!discoveryPublished) { publishDiscovery(); readAndPublish(); lastSend = millis(); }
+    if (!discoveryPublished) { if (ENABLE_MQTT_DISCOVERY) publishDiscovery(); else discoveryPublished = true; readAndPublish(); lastSend = millis(); }
     unsigned long now = millis();
     if (now - lastSend >= SEND_INTERVAL) { lastSend = now; readAndPublish(); }
   }

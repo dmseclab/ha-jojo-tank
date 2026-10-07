@@ -92,7 +92,7 @@ def install_doubles():
     module('homeassistant.helpers.storage', Store=Store)
     module('homeassistant.helpers.dispatcher', async_dispatcher_send=lambda *args: None, async_dispatcher_connect=lambda *args: lambda: None)
     module('homeassistant.helpers.device_registry', DeviceInfo=lambda **kwargs: kwargs)
-    module('homeassistant.helpers.entity_platform', AddConfigEntryEntitiesCallback=object)
+    module('homeassistant.helpers.entity_platform', AddEntitiesCallback=object)
     module('homeassistant.data_entry_flow', FlowResult=dict)
 
     async def wait(_hass):
@@ -109,7 +109,7 @@ def install_doubles():
 
     module('homeassistant.components.mqtt', async_wait_for_mqtt_client=wait, async_subscribe=subscribe, ReceiveMessage=object)
     module('homeassistant.helpers.event', async_call_later=call_later)
-    enum = types.SimpleNamespace(MOISTURE='moisture', VOLUME_STORAGE='volume_storage', DISTANCE='distance', VOLUME='volume', TIMESTAMP='timestamp', VOLTAGE='voltage', SIGNAL_STRENGTH='signal_strength', DURATION='duration', MEASUREMENT='measurement', PROBLEM='problem', DIAGNOSTIC='diagnostic')
+    enum = types.SimpleNamespace(MOISTURE='moisture', VOLUME_STORAGE='volume_storage', DISTANCE='distance', VOLUME='volume', TIMESTAMP='timestamp', VOLTAGE='voltage', SIGNAL_STRENGTH='signal_strength', DURATION='duration', MEASUREMENT='measurement', PROBLEM='problem', DIAGNOSTIC='diagnostic', CONNECTIVITY='connectivity')
     fields = ['key', 'name', 'native_unit_of_measurement', 'device_class', 'state_class', 'suggested_display_precision', 'entity_category', 'entity_registry_enabled_default', 'icon']
     description = make_dataclass('SensorEntityDescription', [(k, object, field(default=None)) for k in fields], frozen=True, kw_only=True)
     module('homeassistant.components.sensor', SensorDeviceClass=enum, SensorStateClass=enum, SensorEntity=Entity, SensorEntityDescription=description)

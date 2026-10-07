@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.1 — 2026-10-07
+
+- Keep last known tank values during telemetry loss and restore their snapshot after HA reload/restart.
+- Add Arduino Online connectivity status, stale attributes and a configurable offline timeout (default 15 minutes).
+- Treat retained snapshots as unknown-age data; only live telemetry updates Last Reading and connectivity.
+- Remove the hidden 4% refill floor. The configured threshold is authoritative; expose it as a diagnostic sensor.
+- Clean up callbacks/timers after failed platform setup and on unload.
+- Add six real Home Assistant tests against a pinned 2025.1.4 compatibility baseline, with an isolated mocked broker transport.
+- Extend unit regressions and add firmware compilation to CI.
+- Firmware 6.1.0 preserves fractional ADC averages and finer telemetry precision; retains the existing 10-bit scale and five-minute interval. Add optional MQTT discovery, enabled by default.
+
+See [0.6.1 evaluation and Saturday reflash](docs/validation-0.6.1.md). This does not yet establish physical refill accuracy or hardware stability of the new firmware.
+
 ## 0.6.0 — 2026-10-07
 
 - Promote 0.6.0-beta.1 median filtering and sustained refill confirmation to main.

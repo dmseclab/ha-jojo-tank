@@ -16,6 +16,7 @@ from .const import (
     CONF_MINIMUM_LEVEL, CONF_MQTT_TOPIC, CONF_REFILL_THRESHOLD,
     CONF_REFILL_TIMEOUT, CONF_SENSE_RESISTOR, CONF_TANK_CAPACITY,
     CONF_TANK_HEIGHT, CONF_TANK_NAME,
+    CONF_TELEMETRY_TIMEOUT, DEFAULT_TELEMETRY_TIMEOUT,
     DEFAULT_EMPTY_CURRENT, DEFAULT_ESTIMATION_RESERVE_LEVEL,
     DEFAULT_FULL_CURRENT, DEFAULT_MINIMUM_LEVEL, DEFAULT_MQTT_TOPIC,
     DEFAULT_REFILL_THRESHOLD, DEFAULT_REFILL_TIMEOUT, DEFAULT_SENSE_RESISTOR,
@@ -32,6 +33,7 @@ def _validate(values: dict[str, Any]) -> dict[str, str]:
         CONF_TANK_CAPACITY, CONF_TANK_HEIGHT, CONF_EMPTY_CURRENT,
         CONF_FULL_CURRENT, CONF_SENSE_RESISTOR, CONF_REFILL_THRESHOLD,
         CONF_REFILL_TIMEOUT, CONF_MINIMUM_LEVEL, CONF_ESTIMATION_RESERVE_LEVEL,
+        CONF_TELEMETRY_TIMEOUT,
     ):
         if key in values and finite_float(values[key]) is None:
             errors[key] = "invalid_number"
@@ -49,6 +51,8 @@ def _validate(values: dict[str, Any]) -> dict[str, str]:
         errors[CONF_REFILL_THRESHOLD] = "must_be_positive"
     elif values[CONF_REFILL_TIMEOUT] <= 0:
         errors[CONF_REFILL_TIMEOUT] = "must_be_positive"
+    elif values.get(CONF_TELEMETRY_TIMEOUT, DEFAULT_TELEMETRY_TIMEOUT) <= 0:
+        errors[CONF_TELEMETRY_TIMEOUT] = "must_be_positive"
     elif not 0 <= values.get(CONF_MINIMUM_LEVEL, DEFAULT_MINIMUM_LEVEL) <= 100:
         errors[CONF_MINIMUM_LEVEL] = "minimum_level_range"
     elif not 0 <= values.get(CONF_ESTIMATION_RESERVE_LEVEL, DEFAULT_ESTIMATION_RESERVE_LEVEL) <= 100:
@@ -69,6 +73,7 @@ def _schema(defaults: dict[str, Any], include_identity: bool = True) -> vol.Sche
         vol.Required(CONF_SENSE_RESISTOR, default=defaults.get(CONF_SENSE_RESISTOR, DEFAULT_SENSE_RESISTOR)): vol.Coerce(float),
         vol.Required(CONF_REFILL_THRESHOLD, default=defaults.get(CONF_REFILL_THRESHOLD, DEFAULT_REFILL_THRESHOLD)): vol.Coerce(float),
         vol.Required(CONF_REFILL_TIMEOUT, default=defaults.get(CONF_REFILL_TIMEOUT, DEFAULT_REFILL_TIMEOUT)): vol.Coerce(float),
+        vol.Required(CONF_TELEMETRY_TIMEOUT, default=defaults.get(CONF_TELEMETRY_TIMEOUT, DEFAULT_TELEMETRY_TIMEOUT)): vol.Coerce(float),
         vol.Required(CONF_MINIMUM_LEVEL, default=defaults.get(CONF_MINIMUM_LEVEL, DEFAULT_MINIMUM_LEVEL)): vol.Coerce(float),
         vol.Required(CONF_ESTIMATION_RESERVE_LEVEL, default=defaults.get(CONF_ESTIMATION_RESERVE_LEVEL, DEFAULT_ESTIMATION_RESERVE_LEVEL)): vol.Coerce(float),
     })

@@ -1,0 +1,4 @@
+# Reproducible compatibility baseline: Home Assistant 2025.1.4, Python 3.13.
+pytest-homeassistant-custom-component==0.13.205
+# aiodns 3.2.0 in this HA baseline requires the pre-5 pycares API.
+pycares==4.11.0

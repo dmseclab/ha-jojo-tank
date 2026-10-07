@@ -16,7 +16,8 @@
           "refill_threshold": "Refill detection threshold (L)",
           "refill_timeout": "Refill end timeout (minutes)",
           "minimum_level": "Low water level (%)",
-          "estimation_reserve_level": "Estimation reserve level (%)"
+          "estimation_reserve_level": "Estimation reserve level (%)",
+          "telemetry_timeout": "Arduino offline timeout (minutes)"
         }
       }
     },
@@ -43,7 +44,7 @@
       },
       "settings": {
         "title": "Tank Settings",
-        "description": "Low Water Level controls the warning sensor. Estimation Reserve Level is independent and is used for water-remaining estimates.",
+        "description": "The refill threshold is used exactly as configured, with median filtering and sustained confirmation. Last known measurements remain visible when the Arduino is offline. Low Water Level controls the warning sensor; Estimation Reserve Level is independent.",
         "data": {
           "tank_capacity": "Tank capacity (L)",
           "tank_height": "Tank height (mm)",
@@ -53,7 +54,8 @@
           "refill_threshold": "Refill detection threshold (L)",
           "refill_timeout": "Refill end timeout (minutes)",
           "minimum_level": "Low water level (%)",
-          "estimation_reserve_level": "Estimation reserve level (%)"
+          "estimation_reserve_level": "Estimation reserve level (%)",
+          "telemetry_timeout": "Arduino offline timeout (minutes)"
         }
       },
       "reset_refill_history": {

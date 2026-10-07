@@ -20,15 +20,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from tests.support import Clock, Harness, calculations
 
 
-async def replay(path, prefix):
+async def replay(path, prefix, threshold):
     with path.open(newline='', encoding='utf-8-sig') as stream:
         rows = list(csv.DictReader(stream))
     groups = defaultdict(list)
     for row in rows:
         if row['entity_id'].startswith(prefix):
             timestamp = datetime.fromisoformat(row['last_changed'].replace('Z', '+00:00'))
-            groups[timestamp].append(row)
-    h = await Harness().setup()
+            # HA entity writes from one publish can differ by milliseconds.
+            groups[timestamp.replace(microsecond=0)].append(row)
+    h = await Harness(refill_threshold=threshold).setup()
     state = {}
     readings, volumes, currents = [], [], []
     previous = None
@@ -63,9 +64,11 @@ async def replay(path, prefix):
         previous = when
     if not readings:
         raise ValueError('No usable telemetry. Set --prefix to the Tank entity prefix.')
+    active_at_export_end = h.runtime['refilling']
     h.settle()
     result = {
         'source_rows':len(rows),
+        'configured_threshold_l':threshold,
         'reconstructed_publishes':len(readings),
         'start_utc':readings[0].isoformat(),
         'end_utc':readings[-1].isoformat(),
@@ -76,7 +79,9 @@ async def replay(path, prefix):
         'volume_max_l':round(max(volumes),2),
         'current_min_ma':round(min(currents),3),
         'current_max_ma':round(max(currents),3),
-        'saturated_publishes':sum(v == 5250 for v in volumes),
+        'saturated_publishes':sum(v == h.entry.data['tank_capacity'] for v in volumes),
+        'refill_active_at_export_end':active_at_export_end,
+        'completed_refill_count':len(h.runtime['refill_history']),
         'single_step_rises_at_least_75_l':sum(b-a >= 75 for a,b in zip(volumes,volumes[1:])),
         'completed_refills':h.runtime['refill_history'],
     }
@@ -87,5 +92,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('csv', type=Path)
     parser.add_argument('--prefix', default='sensor.jojo_water_tank_')
+    parser.add_argument('--threshold', type=float, default=75.0)
     args = parser.parse_args()
-    asyncio.run(replay(args.csv, args.prefix))
+    asyncio.run(replay(args.csv, args.prefix, args.threshold))

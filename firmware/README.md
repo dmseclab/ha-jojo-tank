@@ -2,7 +2,7 @@
 
 This folder contains the Arduino firmware used by the JoJo Tank Monitor reference installation.
 
-The current reference firmware is located at:
+The prepared firmware is **6.1.0**, intended for the next hardware reflash. The reference installation was still on 6.0.0 when these changes were prepared. The sketch is located at:
 
 ```text
 arduino_uno_r4_wifi/jojo_tank_mqtt.ino
@@ -27,6 +27,8 @@ The sketch uses these libraries:
 | `WiFiS3` | Arduino UNO R4 WiFi board package | Normally installed with the board support package |
 | `ArduinoMqttClient` | Arduino | Install using Arduino IDE Library Manager |
 | `ArduinoJson` | Benoit Blanchon | Install using Arduino IDE Library Manager |
+
+The CI build pins `ArduinoMqttClient` 0.1.8, `ArduinoJson` 6.21.5 and the Arduino Renesas UNO board core 1.6.0. Select those versions to reproduce the verified build.
 
 ### Installing the required libraries
 
@@ -82,6 +84,12 @@ Tank capacity, tank height, empty/full calibration, calculated percentage, avail
 
 The reference firmware publishes measurements every five minutes.
 
+Firmware 6.1.0 keeps the 20-sample ADC average as a float rather than truncating it to an integer. `raw_adc` can now contain decimals, voltage is published to two decimal places in mV and current to four in mA. ADC resolution is explicitly kept at 10 bits (maximum 1023) for the first comparison reflash. This preserves the voltage scale; higher resolution requires a separate change to both resolution and maximum count, followed by measurement validation. More decimal places do not establish corresponding sensor accuracy.
+
+`ENABLE_MQTT_DISCOVERY` defaults to `true` to preserve existing discovery-based dashboards. Set it to `false` for a new custom-integration-only installation. This does not remove old retained discovery configurations. Export/check entity dependencies before removing legacy discovery data manually.
+
+See the [Saturday reflash checklist](../docs/validation-0.6.1.md). Retain your local Wi-Fi and broker settings when preparing the upload. No broker or Home Assistant IP change is required.
+
 ## Upload and initial test
 
 After a successful upload, open **Serial Monitor** at **9600 baud**. A normal startup should show Wi-Fi connection, MQTT connection, Home Assistant discovery publication and a raw sensor reading.
@@ -90,7 +98,7 @@ Example sequence:
 
 ```text
 JoJo Tank Raw Monitor - Revision 6
-Firmware: 6.0.0
+Firmware: 6.1.0
 Publish interval: 5 minutes
 Connecting to WiFi...
 WiFi OK - IP: ...

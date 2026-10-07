@@ -12,11 +12,11 @@ from homeassistant.const import PERCENTAGE, SIGNAL_STRENGTH_DECIBELS_MILLIWATT, 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .calculations import current as _current, depth as _depth, level as _level, payload_float as _float, setting as _setting, volume as _volume
 
-from .const import CONF_ESTIMATION_RESERVE_LEVEL, CONF_MINIMUM_LEVEL, CONF_TANK_NAME, DATA_LAST_REFILL_AMOUNT, DATA_LAST_REFILL_TIME, DATA_LATEST, DATA_REFILLING, DATA_REFILL_HISTORY, DEFAULT_ESTIMATION_RESERVE_LEVEL, DEFAULT_MINIMUM_LEVEL, DOMAIN, SIGNAL_UPDATE
+from .const import CONF_ESTIMATION_RESERVE_LEVEL, CONF_MINIMUM_LEVEL, CONF_TANK_NAME, CONF_REFILL_THRESHOLD, DATA_ONLINE, DATA_LAST_REFILL_AMOUNT, DATA_LAST_REFILL_TIME, DATA_LATEST, DATA_REFILLING, DATA_REFILL_HISTORY, DEFAULT_ESTIMATION_RESERVE_LEVEL, DEFAULT_MINIMUM_LEVEL, DEFAULT_REFILL_THRESHOLD, DOMAIN, SIGNAL_UPDATE
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -39,6 +39,7 @@ SENSORS: tuple[JoJoSensorDescription, ...] = (
     JoJoSensorDescription(key="minimum_level", name="Low Water Level", native_unit_of_measurement=PERCENTAGE, suggested_display_precision=0, entity_category=EntityCategory.DIAGNOSTIC, value_fn=lambda data, entry: float(_setting(entry, CONF_MINIMUM_LEVEL, DEFAULT_MINIMUM_LEVEL))),
     JoJoSensorDescription(key="estimation_reserve_level", name="Estimation Reserve Level", native_unit_of_measurement=PERCENTAGE, suggested_display_precision=0, entity_category=EntityCategory.DIAGNOSTIC, value_fn=lambda data, entry: float(_setting(entry, CONF_ESTIMATION_RESERVE_LEVEL, DEFAULT_ESTIMATION_RESERVE_LEVEL))),
     JoJoSensorDescription(key="refill_status", name="Refill Status", runtime_key=DATA_REFILLING),
+    JoJoSensorDescription(key="refill_threshold", name="Refill Threshold", native_unit_of_measurement=UnitOfVolume.LITERS, entity_category=EntityCategory.DIAGNOSTIC, value_fn=lambda data, entry: float(_setting(entry, CONF_REFILL_THRESHOLD, DEFAULT_REFILL_THRESHOLD))),
     JoJoSensorDescription(key="last_refill_amount", name="Last Refill Amount", native_unit_of_measurement=UnitOfVolume.LITERS, device_class=SensorDeviceClass.VOLUME, suggested_display_precision=0, runtime_key=DATA_LAST_REFILL_AMOUNT),
     JoJoSensorDescription(key="last_refill_time", name="Last Refill Time", device_class=SensorDeviceClass.TIMESTAMP, runtime_key=DATA_LAST_REFILL_TIME),
     JoJoSensorDescription(key="last_refill", name="Last Refill", runtime_key=DATA_LAST_REFILL_TIME),
@@ -52,7 +53,7 @@ SENSORS: tuple[JoJoSensorDescription, ...] = (
 )
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddConfigEntryEntitiesCallback) -> None:
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     async_add_entities(JoJoTankSensor(hass, entry, description) for description in SENSORS)
 
 
@@ -85,6 +86,8 @@ class JoJoTankSensor(SensorEntity):
         else:
             data = runtime[DATA_LATEST]
             value = self.entity_description.value_fn(data, self.entry) if self.entity_description.value_fn else None
+        if self.entity_description.key in {"level", "volume", "depth", "current", "raw_adc", "voltage", "wifi", "uptime"}:
+            self._attr_extra_state_attributes = {"stale": not runtime[DATA_ONLINE]}
         if isinstance(value, float) and self.entity_description.key in {"level", "volume", "depth", "current", "minimum_level", "estimation_reserve_level", "raw_adc", "voltage", "wifi", "uptime", "last_refill_amount"}:
             value = round(value, 2)
         self._attr_native_value = value

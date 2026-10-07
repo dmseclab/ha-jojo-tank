@@ -15,5 +15,32 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - run: python -m compileall -q custom_components tests tools
+      - run: python -m compileall -q custom_components tests tools ha_tests
       - run: python -m unittest discover -s tests -v
+
+  home-assistant:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install -r requirements-test-ha.txt
+      - run: python -m pytest ha_tests -q
+
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+        with:
+          version: '1.4.1'
+      - run: arduino-cli core update-index
+      - run: arduino-cli core install arduino:renesas_uno@1.6.0
+      - run: arduino-cli lib install 'ArduinoMqttClient@0.1.8' 'ArduinoJson@6.21.5'
+      - name: Compile UNO R4 WiFi firmware
+        run: |
+          jojo_sketch_dir="$(mktemp -d)/jojo_tank_mqtt"
+          mkdir -p "$jojo_sketch_dir"
+          cp firmware/arduino_uno_r4_wifi/jojo_tank_mqtt.ino "$jojo_sketch_dir/jojo_tank_mqtt.ino"
+          arduino-cli compile --fqbn arduino:renesas_uno:unor4wifi "$jojo_sketch_dir"

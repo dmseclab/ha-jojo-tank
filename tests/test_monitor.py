@@ -30,10 +30,10 @@ class MonitorTests(unittest.IsolatedAsyncioTestCase):
             self.h.send(5000)
         self.assertEqual(len(self.h.runtime['refill_history']), 1)
 
-    async def test_single_spike_and_sub_floor_recovery_are_rejected(self):
+    async def test_single_spike_and_sub_threshold_recovery_are_rejected(self):
         self.warm()
         self.h.send(5250)
-        for volume in [4500] * 6 + [4650] * 12:
+        for volume in [4500] * 6 + [4550] * 12:
             self.h.send(volume)
         self.h.settle()
         self.assertEqual(self.h.runtime['refill_history'], [])
@@ -67,7 +67,7 @@ class MonitorTests(unittest.IsolatedAsyncioTestCase):
         self.warm()
         self.h.send(5000, retain=True)
         for _ in range(8):
-            self.h.send(5000)
+            self.h.send(4500)
         self.h.send(5250, minutes=60)
         for _ in range(8):
             self.h.send(5250)
@@ -144,6 +144,71 @@ class MonitorTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(calculations.volume({'voltage_mv':1380}, h.entry))
         values = dict(self.h.entry.data, sense_resistor=float('nan'))
         self.assertEqual(config_flow._validate(values), {'sense_resistor':'invalid_number'})
+
+    async def test_configured_threshold_has_no_hidden_floor(self):
+        self.warm()
+        for _ in range(8):
+            self.h.send(4600)
+        self.h.settle()
+        self.assertEqual(self.h.runtime['refill_history'][0]['amount_l'], 100)
+
+    async def test_explicit_210_threshold_rejects_100_l_rise(self):
+        self.h = await Harness(refill_threshold=210).setup()
+        self.warm()
+        for _ in range(8):
+            self.h.send(4600)
+        self.h.settle()
+        self.assertEqual(self.h.runtime['refill_history'], [])
+
+    async def test_expiry_keeps_last_known_value_and_marks_offline(self):
+        self.h.send(4500)
+        description = next(x for x in sensor.SENSORS if x.key == 'volume')
+        entity = sensor.JoJoTankSensor(self.h.hass, self.h.entry, description)
+        online = binary_sensor.JoJoArduinoOnlineBinarySensor(self.h.hass, self.h.entry)
+        self.assertTrue(online._attr_is_on)
+        last = self.h.runtime['last_reading']
+        self.h.settle(16)
+        entity._handle_update()
+        online._handle_update()
+        self.assertEqual(entity._attr_native_value, 4500)
+        self.assertTrue(entity._attr_extra_state_attributes['stale'])
+        self.assertFalse(online._attr_is_on)
+        self.assertEqual(last, self.h.runtime['last_reading'])
+        self.h.send(4400)
+        online._handle_update()
+        self.assertTrue(online._attr_is_on)
+
+    async def test_restart_restores_snapshot_without_claiming_online(self):
+        self.h.send(4500)
+        last = self.h.runtime['last_reading']
+        await integration.async_unload_entry(self.h.hass, self.h.entry)
+        h = await Harness(saved=self.h.hass.store.saved).setup()
+        h.send(5250, retain=True)
+        self.assertFalse(h.runtime['online'])
+        self.assertEqual(h.runtime['last_reading'], last)
+        self.assertAlmostEqual(calculations.volume(h.runtime['latest'],h.entry),4500)
+
+    async def test_first_retained_payload_is_known_value_with_unknown_age(self):
+        self.h.send(5000, retain=True)
+        self.assertFalse(self.h.runtime['online'])
+        self.assertIsNone(self.h.runtime['last_reading'])
+        self.assertAlmostEqual(calculations.volume(self.h.runtime['latest'],self.h.entry),5000)
+
+    async def test_telemetry_timeout_option_is_used(self):
+        h = await Harness(telemetry_timeout=30).setup()
+        h.send(4500)
+        h.settle(20)
+        self.assertTrue(h.runtime['online'])
+        h.settle(11)
+        self.assertFalse(h.runtime['online'])
+
+    async def test_snapshot_omits_nonfinite_diagnostics_and_unknown_fields(self):
+        import json
+        self.h.send(payload={'voltage_mv':1200,'wifi_rssi':float('nan'),'unused':float('inf'),'firmware':'6.1.0'})
+        saved = self.h.pending_data()
+        json.dumps(saved, allow_nan=False)
+        self.assertNotIn('wifi_rssi',saved['latest'])
+        self.assertNotIn('unused',saved['latest'])
 
 
 if __name__ == '__main__':

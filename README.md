@@ -66,7 +66,7 @@ git clone https://github.com/dmseclab/ha-jojo-tank.git
 
 ## Current Project Status
 
-> **Current development version on main:** v0.6.0. The project is still undergoing real-world validation before v1.0.0.
+> **Current development version on main:** v0.6.1. The project is still undergoing real-world validation before v1.0.0.
 
 The HACS custom integration is the primary Home Assistant implementation. It provides native tank calculations, configurable calibration, refill detection/history, configurable low-water threshold with hysteresis, independent estimation reserve level and diagnostics. The legacy YAML/template calculation layer has been removed from the reference installation.
 
@@ -82,13 +82,14 @@ The HACS custom integration is the primary Home Assistant implementation. It pro
 | Publish interval | 5 minutes |
 | Refill detection threshold | 75 L |
 | Refill end timeout | 15 minutes |
+| Arduino offline timeout | 15 minutes (user configurable) |
 | Low water level | 20% (user configurable) |
 | Estimation reserve level | 10% (user configurable) |
 | Refill history retention | 60 days / max 100 events |
 
 ## Refill Detection and History
 
-Version 0.6.0 promotes the field-tested beta filter to `main`. Refill detection uses a median of five readings, a recent low-water baseline and three consecutive filtered confirmations. The effective detection threshold is the greater of your configured threshold and **4% of tank capacity** (210 L on the reference 5,250 L tank). A 75 L configured setting therefore does not imply that a 75 L top-up will be detected. Small top-ups can be missed by this conservative filter.
+Version 0.6.1 uses **exactly the configured refill threshold**. There is no hidden minimum or capacity percentage override. The default is 75 L; the diagnostic Refill Threshold entity shows the active value. Refill detection still uses a median of five readings, a recent low-water baseline and three consecutive filtered confirmations. The threshold applies to the sustained filtered rise, so brief physical top-ups may still be missed. Lower settings are more sensitive to measurement recovery; use an explicit 210 L setting if you want the earlier beta's conservative threshold on the reference tank.
 
 At the reference five-minute publish interval, the filter needs about 20 minutes after a sustained step before confirmation, once its baseline is established. Tank level, available water, depth and raw diagnostics remain unsmoothed. Only refill detection is filtered.
 
@@ -100,11 +101,17 @@ Refill amount = final refill volume - volume before refill
 
 Completed events persist across Home Assistant restarts and contain `time`, `start_l`, `end_l` and `amount_l`. History is automatically limited to the latest 60 days and a maximum of 100 events.
 
-Device restarts, retained startup messages and telemetry gaps longer than the greater of 15 minutes or the refill timeout establish a new baseline. In-progress refill detection is discarded across these boundaries. Completed history is preserved. Last Reading is the receipt time of the latest valid MQTT measurement and is unchanged by history/timer updates.
+Device restarts, expired telemetry and long telemetry gaps establish a new baseline. In-progress detection is discarded across those boundaries. Completed history is preserved. Retained startup messages can seed an empty display but do not establish a new Last Reading, prove connectivity, override a stored live measurement or count toward a refill.
 
 **Clear Refill Data** clears stored events, the last refill amount/time, active timers and detection candidates. It leaves Home Assistant Recorder statistics in place.
 
-For the 0.6.0 changes, validation findings and upgrade steps, see [CHANGELOG](CHANGELOG.md) and [field validation](docs/validation-0.6.0.md).
+For changes, validation findings and upgrade steps, see [CHANGELOG](CHANGELOG.md) and [0.6.1 validation and Saturday reflash](docs/validation-0.6.1.md).
+
+## Last Known Values and Connectivity
+
+Tank measurements remain visible when telemetry stops. `Arduino Online` turns off after the configured timeout (15 minutes by default), and measurement entities receive `stale: true`. This status means no recent valid live MQTT measurement; it cannot distinguish Arduino failure from Wi-Fi or broker failure. Last Reading remains the original receipt time rather than advancing during an outage.
+
+The last valid payload and receipt timestamp are stored and restored across Home Assistant restarts. Connectivity remains off until a valid live message arrives. On a first installation, a retained measurement has unknown age and Last Reading remains unknown until live telemetry arrives. Low Water retains its last known state and also exposes the stale attribute. Alarm automations should check Arduino Online when deciding whether to act on a current level.
 
 The reference installation exposes this through `sensor.living_room_jojo_water_tank_refill_history`. A native Home Assistant Markdown card can render the event attribute as a Date/Time, Before, After and Added table without InfluxDB or Grafana.
 
@@ -150,7 +157,8 @@ The reference Home Assistant installation uses native Recorder with 60-day reten
 - [ ] Confirm a completed refill creates one correct history row after the 15-minute timeout
 - [ ] Verify refill history survives a Home Assistant restart after a real event is stored
 - [ ] Continue real-world validation of Low Water threshold/hysteresis behaviour
-- [x] Replay 4–7 October history through MQTT callbacks with zero detected refill events
+- [x] Compare explicit 75 L and 210 L settings on September and October history
+- [x] Verify setup, MQTT dispatch, expiry, recovery, settings and reload in a real HA test runtime
 
 ### Before v1.0 stable
 

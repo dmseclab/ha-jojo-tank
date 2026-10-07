@@ -7,12 +7,13 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
     CONF_MINIMUM_LEVEL,
     CONF_TANK_NAME,
     DATA_LATEST,
+    DATA_ONLINE,
     DEFAULT_MINIMUM_LEVEL,
     DOMAIN,
     SIGNAL_UPDATE,
@@ -25,9 +26,9 @@ LOW_WATER_CLEAR_MARGIN = 2.0
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
-    async_add_entities: AddConfigEntryEntitiesCallback,
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
-    async_add_entities([JoJoLowWaterBinarySensor(hass, entry)])
+    async_add_entities([JoJoLowWaterBinarySensor(hass, entry), JoJoArduinoOnlineBinarySensor(hass, entry)])
 
 
 class JoJoLowWaterBinarySensor(BinarySensorEntity):
@@ -53,6 +54,7 @@ class JoJoLowWaterBinarySensor(BinarySensorEntity):
     @callback
     def _update_value(self) -> None:
         runtime = self.hass.data[DOMAIN][self.entry.entry_id]
+        self._attr_extra_state_attributes = {"stale": not runtime[DATA_ONLINE]}
         level = _level(runtime[DATA_LATEST], self.entry)
         if level is None:
             self._attr_is_on = None
@@ -82,3 +84,25 @@ class JoJoLowWaterBinarySensor(BinarySensorEntity):
     def _handle_update(self) -> None:
         self._update_value()
         self.async_write_ha_state()
+
+
+class JoJoArduinoOnlineBinarySensor(JoJoLowWaterBinarySensor):
+    """Connectivity means recent valid live telemetry, not retained data."""
+
+    _attr_name = "Arduino Online"
+    _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        super().__init__(hass, entry)
+        self._attr_unique_id = f"{entry.entry_id}_arduino_online"
+
+    @callback
+    def _update_value(self) -> None:
+        runtime = self.hass.data[DOMAIN][self.entry.entry_id]
+        self._attr_is_on = runtime[DATA_ONLINE]
+        self._attr_extra_state_attributes = {
+            "last_live_reading": runtime["last_reading"].isoformat() if runtime["last_reading"] else None,
+            "status": "Online" if runtime[DATA_ONLINE] else (
+                "Offline / no recent telemetry" if runtime["last_live_message"] else "Awaiting live telemetry"
+            ),
+        }

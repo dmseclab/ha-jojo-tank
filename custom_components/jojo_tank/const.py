@@ -12,6 +12,7 @@ CONF_FULL_CURRENT = "full_current"
 CONF_SENSE_RESISTOR = "sense_resistor"
 CONF_REFILL_THRESHOLD = "refill_threshold"
 CONF_REFILL_TIMEOUT = "refill_timeout"
+CONF_TELEMETRY_TIMEOUT = "telemetry_timeout"
 # Kept as minimum_level internally for backwards compatibility with existing installs.
 CONF_MINIMUM_LEVEL = "minimum_level"
 CONF_ESTIMATION_RESERVE_LEVEL = "estimation_reserve_level"
@@ -25,6 +26,7 @@ DEFAULT_FULL_CURRENT = 11.5
 DEFAULT_SENSE_RESISTOR = 120.0
 DEFAULT_REFILL_THRESHOLD = 75.0
 DEFAULT_REFILL_TIMEOUT = 15.0
+DEFAULT_TELEMETRY_TIMEOUT = 15.0
 DEFAULT_MINIMUM_LEVEL = 20.0
 DEFAULT_ESTIMATION_RESERVE_LEVEL = 10.0
 
@@ -38,4 +40,6 @@ DATA_REFILL_START_VOLUME = "refill_start_volume"
 DATA_REFILL_END_VOLUME = "refill_end_volume"
 DATA_PREVIOUS_VOLUME = "previous_volume"
 DATA_REFILL_TIMER = "refill_timer"
+DATA_ONLINE = "online"
+DATA_TELEMETRY_TIMER = "telemetry_timer"
 SIGNAL_UPDATE = f"{DOMAIN}_update"
