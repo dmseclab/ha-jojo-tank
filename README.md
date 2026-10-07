@@ -66,7 +66,7 @@ git clone https://github.com/dmseclab/ha-jojo-tank.git
 
 ## Current Project Status
 
-> **Current stable development version:** v0.5.4. The project is still undergoing real-world validation before v1.0.0.
+> **Current development version on main:** v0.6.0. The project is still undergoing real-world validation before v1.0.0.
 
 The HACS custom integration is the primary Home Assistant implementation. It provides native tank calculations, configurable calibration, refill detection/history, configurable low-water threshold with hysteresis, independent estimation reserve level and diagnostics. The legacy YAML/template calculation layer has been removed from the reference installation.
 
