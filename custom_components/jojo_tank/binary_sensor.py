@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -12,35 +10,16 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import (
-    CONF_EMPTY_CURRENT,
-    CONF_FULL_CURRENT,
     CONF_MINIMUM_LEVEL,
-    CONF_SENSE_RESISTOR,
     CONF_TANK_NAME,
     DATA_LATEST,
     DEFAULT_MINIMUM_LEVEL,
     DOMAIN,
     SIGNAL_UPDATE,
 )
+from .calculations import level as _level, setting as _setting
 
 LOW_WATER_CLEAR_MARGIN = 2.0
-
-
-def _setting(entry: ConfigEntry, key: str, default: Any = None) -> Any:
-    return entry.options.get(key, entry.data.get(key, default))
-
-
-def _level(data: dict[str, Any], entry: ConfigEntry) -> float | None:
-    try:
-        voltage = float(data["voltage_mv"])
-        resistor = float(_setting(entry, CONF_SENSE_RESISTOR))
-        current = voltage / resistor
-        empty = float(_setting(entry, CONF_EMPTY_CURRENT))
-        full = float(_setting(entry, CONF_FULL_CURRENT))
-        level = ((current - empty) / (full - empty)) * 100.0
-        return max(0.0, min(100.0, level))
-    except (KeyError, TypeError, ValueError, ZeroDivisionError):
-        return None
 
 
 async def async_setup_entry(
@@ -55,6 +34,7 @@ class JoJoLowWaterBinarySensor(BinarySensorEntity):
     """Indicate low water with hysteresis around the configured minimum."""
 
     _attr_has_entity_name = True
+    _attr_should_poll = False
     _attr_name = "Low Water"
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
 

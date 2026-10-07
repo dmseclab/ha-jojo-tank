@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Callable
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorEntityDescription, SensorStateClass
@@ -14,55 +14,15 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import CONF_EMPTY_CURRENT, CONF_ESTIMATION_RESERVE_LEVEL, CONF_FULL_CURRENT, CONF_MINIMUM_LEVEL, CONF_SENSE_RESISTOR, CONF_TANK_CAPACITY, CONF_TANK_HEIGHT, CONF_TANK_NAME, DATA_LAST_REFILL_AMOUNT, DATA_LAST_REFILL_TIME, DATA_LATEST, DATA_REFILLING, DATA_REFILL_HISTORY, DEFAULT_ESTIMATION_RESERVE_LEVEL, DEFAULT_MINIMUM_LEVEL, DOMAIN, SIGNAL_UPDATE
+from .calculations import current as _current, depth as _depth, level as _level, payload_float as _float, setting as _setting, volume as _volume
+
+from .const import CONF_ESTIMATION_RESERVE_LEVEL, CONF_MINIMUM_LEVEL, CONF_TANK_NAME, DATA_LAST_REFILL_AMOUNT, DATA_LAST_REFILL_TIME, DATA_LATEST, DATA_REFILLING, DATA_REFILL_HISTORY, DEFAULT_ESTIMATION_RESERVE_LEVEL, DEFAULT_MINIMUM_LEVEL, DOMAIN, SIGNAL_UPDATE
 
 
 @dataclass(frozen=True, kw_only=True)
 class JoJoSensorDescription(SensorEntityDescription):
     value_fn: Callable[[dict[str, Any], ConfigEntry], Any] | None = None
     runtime_key: str | None = None
-
-
-def _setting(entry: ConfigEntry, key: str, default: Any = None) -> Any:
-    if key in entry.options:
-        return entry.options[key]
-    if key in entry.data:
-        return entry.data[key]
-    return default
-
-
-def _float(data: dict[str, Any], key: str) -> float | None:
-    try:
-        return float(data[key])
-    except (KeyError, TypeError, ValueError):
-        return None
-
-
-def _current(data: dict[str, Any], entry: ConfigEntry) -> float | None:
-    voltage = _float(data, "voltage_mv")
-    if voltage is not None:
-        return voltage / float(_setting(entry, CONF_SENSE_RESISTOR))
-    return _float(data, "current_raw_ma")
-
-
-def _level(data: dict[str, Any], entry: ConfigEntry) -> float | None:
-    current = _current(data, entry)
-    if current is None:
-        return None
-    empty = float(_setting(entry, CONF_EMPTY_CURRENT))
-    full = float(_setting(entry, CONF_FULL_CURRENT))
-    level = ((current - empty) / (full - empty)) * 100.0
-    return max(0.0, min(100.0, level))
-
-
-def _volume(data: dict[str, Any], entry: ConfigEntry) -> float | None:
-    level = _level(data, entry)
-    return None if level is None else level / 100.0 * float(_setting(entry, CONF_TANK_CAPACITY))
-
-
-def _depth(data: dict[str, Any], entry: ConfigEntry) -> float | None:
-    level = _level(data, entry)
-    return None if level is None else level / 100.0 * float(_setting(entry, CONF_TANK_HEIGHT))
 
 
 def _friendly_refill_time(value: Any) -> str:
@@ -88,7 +48,7 @@ SENSORS: tuple[JoJoSensorDescription, ...] = (
     JoJoSensorDescription(key="wifi", name="Wi-Fi Signal", native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT, device_class=SensorDeviceClass.SIGNAL_STRENGTH, state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0, entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False, value_fn=lambda data, entry: _float(data, "wifi_rssi")),
     JoJoSensorDescription(key="uptime", name="Uptime", native_unit_of_measurement=UnitOfTime.SECONDS, device_class=SensorDeviceClass.DURATION, entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False, value_fn=lambda data, entry: _float(data, "uptime_seconds")),
     JoJoSensorDescription(key="firmware", name="Firmware", entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False, value_fn=lambda data, entry: data.get("firmware")),
-    JoJoSensorDescription(key="last_reading", name="Last Reading", device_class=SensorDeviceClass.TIMESTAMP, value_fn=lambda data, entry: datetime.now(timezone.utc) if data else None),
+    JoJoSensorDescription(key="last_reading", name="Last Reading", device_class=SensorDeviceClass.TIMESTAMP, runtime_key="last_reading"),
 )
 
 
@@ -98,6 +58,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
 class JoJoTankSensor(SensorEntity):
     _attr_has_entity_name = True
+    _attr_should_poll = False
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry, description: JoJoSensorDescription) -> None:
         self.hass = hass

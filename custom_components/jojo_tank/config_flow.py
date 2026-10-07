@@ -10,12 +10,12 @@ from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
+from .calculations import finite_float
 from .const import (
     CONF_EMPTY_CURRENT, CONF_ESTIMATION_RESERVE_LEVEL, CONF_FULL_CURRENT,
     CONF_MINIMUM_LEVEL, CONF_MQTT_TOPIC, CONF_REFILL_THRESHOLD,
     CONF_REFILL_TIMEOUT, CONF_SENSE_RESISTOR, CONF_TANK_CAPACITY,
-    CONF_TANK_HEIGHT, CONF_TANK_NAME, DATA_LAST_REFILL_AMOUNT,
-    DATA_LAST_REFILL_TIME, DATA_REFILLING, DATA_REFILL_TIMER,
+    CONF_TANK_HEIGHT, CONF_TANK_NAME,
     DEFAULT_EMPTY_CURRENT, DEFAULT_ESTIMATION_RESERVE_LEVEL,
     DEFAULT_FULL_CURRENT, DEFAULT_MINIMUM_LEVEL, DEFAULT_MQTT_TOPIC,
     DEFAULT_REFILL_THRESHOLD, DEFAULT_REFILL_TIMEOUT, DEFAULT_SENSE_RESISTOR,
@@ -28,6 +28,15 @@ CONF_RESET_REFILL_HISTORY = "reset_refill_history"
 
 def _validate(values: dict[str, Any]) -> dict[str, str]:
     errors: dict[str, str] = {}
+    for key in (
+        CONF_TANK_CAPACITY, CONF_TANK_HEIGHT, CONF_EMPTY_CURRENT,
+        CONF_FULL_CURRENT, CONF_SENSE_RESISTOR, CONF_REFILL_THRESHOLD,
+        CONF_REFILL_TIMEOUT, CONF_MINIMUM_LEVEL, CONF_ESTIMATION_RESERVE_LEVEL,
+    ):
+        if key in values and finite_float(values[key]) is None:
+            errors[key] = "invalid_number"
+    if errors:
+        return errors
     if values[CONF_FULL_CURRENT] <= values[CONF_EMPTY_CURRENT]:
         errors[CONF_FULL_CURRENT] = "full_not_greater_than_empty"
     elif values[CONF_TANK_CAPACITY] <= 0:
@@ -112,15 +121,7 @@ class JoJoTankOptionsFlow(config_entries.OptionsFlow):
             if user_input.get(CONF_RESET_REFILL_HISTORY):
                 runtime = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
                 if runtime is not None:
-                    if cancel := runtime.get(DATA_REFILL_TIMER):
-                        cancel()
-                    runtime[DATA_REFILLING] = False
-                    runtime[DATA_LAST_REFILL_AMOUNT] = 0.0
-                    runtime[DATA_LAST_REFILL_TIME] = None
-                    runtime[DATA_REFILL_TIMER] = None
-                    store = runtime.get("store")
-                    if store is not None:
-                        await store.async_save({DATA_LAST_REFILL_AMOUNT: 0.0, DATA_LAST_REFILL_TIME: None})
+                    runtime["clear_refill_history"]()
                     async_dispatcher_send(self.hass, f"{SIGNAL_UPDATE}_{self.config_entry.entry_id}")
             return self.async_create_entry(title="", data=dict(self.config_entry.options))
 

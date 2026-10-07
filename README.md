@@ -88,13 +88,23 @@ The HACS custom integration is the primary Home Assistant implementation. It pro
 
 ## Refill Detection and History
 
-A refill begins when the calculated volume rises by at least the configured refill threshold between readings. Further qualifying rises during the configured timeout are treated as part of the same physical refill. When the timeout expires, the integration closes the event and records:
+Version 0.6.0 promotes the field-tested beta filter to `main`. Refill detection uses a median of five readings, a recent low-water baseline and three consecutive filtered confirmations. The effective detection threshold is the greater of your configured threshold and **4% of tank capacity** (210 L on the reference 5,250 L tank). A 75 L configured setting therefore does not imply that a 75 L top-up will be detected. Small top-ups can be missed by this conservative filter.
+
+At the reference five-minute publish interval, the filter needs about 20 minutes after a sustained step before confirmation, once its baseline is established. Tank level, available water, depth and raw diagnostics remain unsmoothed. Only refill detection is filtered.
+
+Once a refill is confirmed, its end volume follows the filtered high-water mark. Rising readings keep the close-out timer active while the median catches up, including slow refills. When readings stop rising for the configured timeout, the integration closes the event and records:
 
 ```text
 Refill amount = final refill volume - volume before refill
 ```
 
 Completed events persist across Home Assistant restarts and contain `time`, `start_l`, `end_l` and `amount_l`. History is automatically limited to the latest 60 days and a maximum of 100 events.
+
+Device restarts, retained startup messages and telemetry gaps longer than the greater of 15 minutes or the refill timeout establish a new baseline. In-progress refill detection is discarded across these boundaries. Completed history is preserved. Last Reading is the receipt time of the latest valid MQTT measurement and is unchanged by history/timer updates.
+
+**Clear Refill Data** clears stored events, the last refill amount/time, active timers and detection candidates. It leaves Home Assistant Recorder statistics in place.
+
+For the 0.6.0 changes, validation findings and upgrade steps, see [CHANGELOG](CHANGELOG.md) and [field validation](docs/validation-0.6.0.md).
 
 The reference installation exposes this through `sensor.living_room_jojo_water_tank_refill_history`. A native Home Assistant Markdown card can render the event attribute as a Date/Time, Before, After and Added table without InfluxDB or Grafana.
 
@@ -119,6 +129,9 @@ The reference Home Assistant installation uses native Recorder with 60-day reten
 - [x] Add 60-day structured refill-event history
 - [x] Calculate refill from start-to-end volume instead of summing intermediate rises
 - [x] Add refill-history sensor and dashboard table design
+- [x] Promote beta refill filtering to main with regression coverage
+- [x] Share validated calculations across sensors, alarms and refill detection
+- [x] Fix refill clearing and Last Reading timestamps
 - [x] Configure Home Assistant Recorder for 60-day history
 - [x] Retire InfluxDB/Grafana from the current reference design
 - [x] Add configurable Low Water Level and binary sensor with hysteresis
@@ -137,6 +150,7 @@ The reference Home Assistant installation uses native Recorder with 60-day reten
 - [ ] Confirm a completed refill creates one correct history row after the 15-minute timeout
 - [ ] Verify refill history survives a Home Assistant restart after a real event is stored
 - [ ] Continue real-world validation of Low Water threshold/hysteresis behaviour
+- [x] Replay 4–7 October history through MQTT callbacks with zero detected refill events
 
 ### Before v1.0 stable
 

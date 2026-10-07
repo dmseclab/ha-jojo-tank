@@ -24,9 +24,12 @@
       "full_not_greater_than_empty": "Full current must be greater than empty current.",
       "must_be_positive": "Value must be greater than zero.",
       "minimum_level_range": "Low water level must be between 0 and 100%.",
-      "estimation_reserve_level_range": "Estimation reserve level must be between 0 and 100%."
+      "estimation_reserve_level_range": "Estimation reserve level must be between 0 and 100%.",
+      "invalid_number": "Enter a finite numeric value."
     },
-    "abort": {"already_configured": "This MQTT tank topic is already configured."}
+    "abort": {
+      "already_configured": "This MQTT tank topic is already configured."
+    }
   },
   "options": {
     "step": {
@@ -55,15 +58,18 @@
       },
       "reset_refill_history": {
         "title": "Clear Refill Data",
-        "description": "Clear the stored last refill amount and time. This does not change tank calibration, dimensions, MQTT readings or Home Assistant statistics.",
-        "data": {"reset_refill_history": "I understand — clear the stored refill data"}
+        "description": "Clear all stored refill events, the last refill amount/time and active refill tracking. Home Assistant Recorder statistics are retained.",
+        "data": {
+          "reset_refill_history": "I understand — clear the stored refill data"
+        }
       }
     },
     "error": {
       "full_not_greater_than_empty": "Full current must be greater than empty current.",
       "must_be_positive": "Value must be greater than zero.",
       "minimum_level_range": "Low water level must be between 0 and 100%.",
-      "estimation_reserve_level_range": "Estimation reserve level must be between 0 and 100%."
+      "estimation_reserve_level_range": "Estimation reserve level must be between 0 and 100%.",
+      "invalid_number": "Enter a finite numeric value."
     }
   }
 }
