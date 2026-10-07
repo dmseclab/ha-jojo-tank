@@ -1,10 +1,72 @@
-# JoJo Tank Monitor for Home Assistant
+# JoJo Water Tank Monitor for Home Assistant
 
-A reproducible DIY water-tank monitoring project using an Arduino-compatible controller, a submersible pressure level sensor, MQTT and Home Assistant.
+**JoJo Tank Monitor** is an open-source Home Assistant custom integration for monitoring **JoJo Tanks and other water storage tanks** using **MQTT**, an Arduino-compatible controller and a **4–20 mA water-level / pressure sensor**.
 
-> **Project status:** v0.5.4 active development / pre-v1.0 validation. Repository governance is enabled for the default branch with deletion and force-push protection; the authorised maintenance workflow has been verified after protection was enabled.
+It converts raw tank-sensor telemetry into useful Home Assistant entities such as **water level percentage, water depth, volume in litres, low-water status, refill detection, refill history and diagnostics**. The reference build uses an Arduino UNO R4 WiFi with a submersible pressure sensor, but the Home Assistant integration is designed around MQTT data and configurable calibration values.
 
-## Current project status
+This project is useful for anyone looking for a **Home Assistant water tank monitor**, **JoJo tank level sensor**, **MQTT water tank monitoring**, or a DIY **4–20 mA tank level monitoring** solution.
+
+## Features
+
+- Home Assistant custom integration with Config Flow
+- HACS-compatible repository structure
+- MQTT-based local communication
+- Tank level percentage
+- Water depth in millimetres
+- Calculated water volume in litres
+- Configurable tank capacity and tank height
+- Configurable empty/full current calibration
+- Raw ADC, voltage and current diagnostics
+- Wi-Fi, uptime and firmware diagnostics
+- Configurable low-water threshold with hysteresis
+- Independent estimation reserve level
+- Refill detection and persistent refill history
+- Home Assistant Recorder support without requiring Grafana or InfluxDB
+- Local processing with no cloud service required
+- MIT licensed
+
+## Reference Hardware
+
+The current reference installation uses:
+
+- JoJo 5,250 L vertical water tank
+- Arduino UNO R4 WiFi
+- 4–20 mA submersible pressure / level sensor
+- DFRobot SEN0262 current-to-voltage converter
+- 120 ohm sense resistor
+- 24 V sensor power supply
+- MQTT broker accessible to Home Assistant
+
+Other tank sizes and compatible MQTT sensor sources can be used by changing the integration calibration and tank settings.
+
+## Installation with HACS
+
+Until the project is submitted to the default HACS repository, install it as a **custom repository**:
+
+1. Open **HACS** in Home Assistant.
+2. Go to **Integrations**.
+3. Open the HACS menu and choose **Custom repositories**.
+4. Add:
+
+   ```text
+   https://github.com/dmseclab/ha-jojo-tank
+   ```
+
+5. Select **Integration** as the repository category.
+6. Find **JoJo Tank Monitor** in HACS and install it.
+7. Restart Home Assistant if prompted.
+8. Go to **Settings → Devices & services → Add Integration**.
+9. Search for **JoJo Tank Monitor** and complete the configuration flow.
+
+You can also download or clone the repository directly:
+
+```bash
+git clone https://github.com/dmseclab/ha-jojo-tank.git
+```
+
+## Current Project Status
+
+> **Current stable development version:** v0.5.4. The project is still undergoing real-world validation before v1.0.0.
 
 The HACS custom integration is the primary Home Assistant implementation. It provides native tank calculations, configurable calibration, refill detection/history, configurable low-water threshold with hysteresis, independent estimation reserve level and diagnostics. The legacy YAML/template calculation layer has been removed from the reference installation.
 
