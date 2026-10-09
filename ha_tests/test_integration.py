@@ -22,8 +22,8 @@ def config():
     }
 
 
-async def setup(hass):
-    entry = MockConfigEntry(domain=DOMAIN, data=config(), title='JoJo Water Tank', unique_id='test/jojo/state')
+async def setup(hass, options=None):
+    entry = MockConfigEntry(domain=DOMAIN, data=config(), title='JoJo Water Tank', unique_id='test/jojo/state', options=options or {})
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
@@ -122,3 +122,23 @@ async def test_sustained_100_l_refill_records_once_and_survives_reload(hass, mqt
     assert await hass.config_entries.async_reload(entry.entry_id)
     await hass.async_block_till_done()
     assert hass.states.get(history_id).attributes['events'][0]['amount_l'] == 100
+
+
+async def test_weather_compensation_and_fallback(hass, mqtt_mock, freezer):
+    hass.states.async_set('weather.forecast_home', 'sunny', {'temperature':35, 'temperature_unit':'°C'})
+    entry = await setup(hass, {'temperature_compensation':True})
+    await send(hass, voltage=(4+1755/1850*7.5)*120)
+    depth_id = entity_id(hass,entry,'sensor','depth')
+    raw_id = entity_id(hass,entry,'sensor','raw_depth')
+    correction_id = entity_id(hass,entry,'sensor','temperature_correction')
+    assert float(hass.states.get(depth_id).state) == 1830
+    assert float(hass.states.get(raw_id).state) == 1755
+    assert float(hass.states.get(correction_id).state) == 75
+    # A broker payload cannot substitute a trusted weather correction.
+    async_fire_mqtt_message(hass, 'test/jojo/state', json.dumps({'voltage_mv':1200, '_temperature_correction_mm':999}))
+    await hass.async_block_till_done()
+    assert float(hass.states.get(correction_id).state) == 75
+    hass.states.async_set('weather.forecast_home', 'unavailable')
+    await send(hass, voltage=(4+1755/1850*7.5)*120)
+    assert float(hass.states.get(depth_id).state) == 1755
+    assert float(hass.states.get(correction_id).state) == 0

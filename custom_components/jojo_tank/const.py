@@ -20,7 +20,7 @@ CONF_ESTIMATION_RESERVE_LEVEL = "estimation_reserve_level"
 DEFAULT_TANK_NAME = "JoJo Water Tank"
 DEFAULT_MQTT_TOPIC = "homeassistant/sensor/jojo_tank/state"
 DEFAULT_TANK_CAPACITY = 5250.0
-DEFAULT_TANK_HEIGHT = 1850.0
+DEFAULT_TANK_HEIGHT = 1900.0
 DEFAULT_EMPTY_CURRENT = 4.0
 DEFAULT_FULL_CURRENT = 11.5
 DEFAULT_SENSE_RESISTOR = 120.0
@@ -43,3 +43,15 @@ DATA_REFILL_TIMER = "refill_timer"
 DATA_ONLINE = "online"
 DATA_TELEMETRY_TIMER = "telemetry_timer"
 SIGNAL_UPDATE = f"{DOMAIN}_update"
+
+# Optional ambient-weather correction. Defaults are trial settings, not a fitted model.
+CONF_TEMPERATURE_COMPENSATION = "temperature_compensation"
+CONF_WEATHER_ENTITY = "weather_entity"
+CONF_TEMPERATURE_REFERENCE = "temperature_reference"
+CONF_TEMPERATURE_COEFFICIENT = "temperature_coefficient"
+CONF_TEMPERATURE_CAP = "temperature_cap"
+DEFAULT_TEMPERATURE_COMPENSATION = False
+DEFAULT_WEATHER_ENTITY = "weather.forecast_home"
+DEFAULT_TEMPERATURE_REFERENCE = 20.0
+DEFAULT_TEMPERATURE_COEFFICIENT = 5.0
+DEFAULT_TEMPERATURE_CAP = 75.0

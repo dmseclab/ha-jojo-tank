@@ -17,7 +17,12 @@
           "refill_timeout": "Refill end timeout (minutes)",
           "minimum_level": "Low water level (%)",
           "estimation_reserve_level": "Estimation reserve level (%)",
-          "telemetry_timeout": "Arduino offline timeout (minutes)"
+          "telemetry_timeout": "Arduino offline timeout (minutes)",
+          "temperature_compensation": "Enable ambient temperature correction (trial)",
+          "weather_entity": "Weather entity",
+          "temperature_reference": "Correction starts above (\u00b0C)",
+          "temperature_coefficient": "Correction per degree (mm/\u00b0C, 0\u201310)",
+          "temperature_cap": "Maximum correction (mm, 0\u2013100)"
         }
       }
     },
@@ -26,7 +31,9 @@
       "must_be_positive": "Value must be greater than zero.",
       "minimum_level_range": "Low water level must be between 0 and 100%.",
       "estimation_reserve_level_range": "Estimation reserve level must be between 0 and 100%.",
-      "invalid_number": "Enter a finite numeric value."
+      "invalid_number": "Enter a finite numeric value.",
+      "temperature_setting_range": "Use 0\u201345\u00b0C reference, 0\u201310 mm/\u00b0C coefficient and 0\u2013100 mm cap.",
+      "invalid_weather_entity": "Enter a weather entity such as weather.forecast_home."
     },
     "abort": {
       "already_configured": "This MQTT tank topic is already configured."
@@ -44,7 +51,7 @@
       },
       "settings": {
         "title": "Tank Settings",
-        "description": "The refill threshold is used exactly as configured, with median filtering and sustained confirmation. Last known measurements remain visible when the Arduino is offline. Low Water Level controls the warning sensor; Estimation Reserve Level is independent.",
+        "description": "The refill threshold is used exactly as configured, with median filtering and sustained confirmation. Last known measurements remain visible when the Arduino is offline. Low Water Level controls the warning sensor; Estimation Reserve Level is independent. Ambient correction is an optional trial, not a validated accuracy model. Unavailable or stale weather uses raw depth. Level and volume remain capped at configured capacity.",
         "data": {
           "tank_capacity": "Tank capacity (L)",
           "tank_height": "Tank height (mm)",
@@ -55,14 +62,19 @@
           "refill_timeout": "Refill end timeout (minutes)",
           "minimum_level": "Low water level (%)",
           "estimation_reserve_level": "Estimation reserve level (%)",
-          "telemetry_timeout": "Arduino offline timeout (minutes)"
+          "telemetry_timeout": "Arduino offline timeout (minutes)",
+          "temperature_compensation": "Enable ambient temperature correction (trial)",
+          "weather_entity": "Weather entity",
+          "temperature_reference": "Correction starts above (\u00b0C)",
+          "temperature_coefficient": "Correction per degree (mm/\u00b0C, 0\u201310)",
+          "temperature_cap": "Maximum correction (mm, 0\u2013100)"
         }
       },
       "reset_refill_history": {
         "title": "Clear Refill Data",
         "description": "Clear all stored refill events, the last refill amount/time and active refill tracking. Home Assistant Recorder statistics are retained.",
         "data": {
-          "reset_refill_history": "I understand — clear the stored refill data"
+          "reset_refill_history": "I understand \u2014 clear the stored refill data"
         }
       }
     },
@@ -71,7 +83,9 @@
       "must_be_positive": "Value must be greater than zero.",
       "minimum_level_range": "Low water level must be between 0 and 100%.",
       "estimation_reserve_level_range": "Estimation reserve level must be between 0 and 100%.",
-      "invalid_number": "Enter a finite numeric value."
+      "invalid_number": "Enter a finite numeric value.",
+      "temperature_setting_range": "Use 0\u201345\u00b0C reference, 0\u201310 mm/\u00b0C coefficient and 0\u2013100 mm cap.",
+      "invalid_weather_entity": "Enter a weather entity such as weather.forecast_home."
     }
   }
 }

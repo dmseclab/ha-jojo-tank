@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.2-beta.1 — 2026-10-09
+
+- Set the default usable full depth to 1900 mm; keep capacity at 5250 L. Existing entries require the Tank height option to be updated explicitly.
+
+- Add opt-in, configurable ambient-weather correction with a 75 mm trial cap and 100 mm hard limit.
+- Expose raw physical depth, compensation temperature, applied correction and status; preserve raw electrical diagnostics.
+- Allow physical depth above configured full depth while retaining percentage/volume limits.
+- Fall back to raw depth for stale/unavailable/invalid weather on live telemetry. Preserve offline snapshots through reload.
+- Prevent correction-only changes from creating refill rises. No Arduino change is needed.
+- Trial defaults are provisional; exported temperature history is from a separate sensor and does not validate weather-based ±5% accuracy.
+
 ## 0.6.1 — 2026-10-07
 
 - Keep last known tank values during telemetry loss and restore their snapshot after HA reload/restart.

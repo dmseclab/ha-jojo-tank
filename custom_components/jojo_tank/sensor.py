@@ -14,7 +14,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .calculations import current as _current, depth as _depth, level as _level, payload_float as _float, setting as _setting, volume as _volume
+from .calculations import raw_depth as _raw_depth, current as _current, depth as _depth, level as _level, payload_float as _float, setting as _setting, volume as _volume
 
 from .const import CONF_ESTIMATION_RESERVE_LEVEL, CONF_MINIMUM_LEVEL, CONF_TANK_NAME, CONF_REFILL_THRESHOLD, DATA_ONLINE, DATA_LAST_REFILL_AMOUNT, DATA_LAST_REFILL_TIME, DATA_LATEST, DATA_REFILLING, DATA_REFILL_HISTORY, DEFAULT_ESTIMATION_RESERVE_LEVEL, DEFAULT_MINIMUM_LEVEL, DEFAULT_REFILL_THRESHOLD, DOMAIN, SIGNAL_UPDATE
 
@@ -32,6 +32,10 @@ def _friendly_refill_time(value: Any) -> str:
 
 
 SENSORS: tuple[JoJoSensorDescription, ...] = (
+    JoJoSensorDescription(key="raw_depth", name="Raw Water Depth", native_unit_of_measurement=UnitOfLength.MILLIMETERS, device_class=SensorDeviceClass.DISTANCE, state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0, entity_category=EntityCategory.DIAGNOSTIC, value_fn=_raw_depth),
+    JoJoSensorDescription(key="temperature_correction", name="Temperature Correction", native_unit_of_measurement=UnitOfLength.MILLIMETERS, suggested_display_precision=0, entity_category=EntityCategory.DIAGNOSTIC, value_fn=lambda data, entry: data.get("_temperature_correction_mm", 0.0)),
+    JoJoSensorDescription(key="ambient_temperature", name="Compensation Temperature", native_unit_of_measurement="°C", state_class=SensorStateClass.MEASUREMENT, entity_category=EntityCategory.DIAGNOSTIC, value_fn=lambda data, entry: data.get("_ambient_temperature_c")),
+    JoJoSensorDescription(key="compensation_status", name="Temperature Compensation", entity_category=EntityCategory.DIAGNOSTIC, value_fn=lambda data, entry: data.get("_compensation_status", "Waiting for live telemetry")),
     JoJoSensorDescription(key="level", name="Tank Level", native_unit_of_measurement=PERCENTAGE, device_class=SensorDeviceClass.MOISTURE, state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0, value_fn=_level),
     JoJoSensorDescription(key="volume", name="Available Water", native_unit_of_measurement=UnitOfVolume.LITERS, device_class=SensorDeviceClass.VOLUME_STORAGE, state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0, value_fn=_volume),
     JoJoSensorDescription(key="depth", name="Water Depth", native_unit_of_measurement=UnitOfLength.MILLIMETERS, device_class=SensorDeviceClass.DISTANCE, state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=0, value_fn=_depth),
@@ -86,7 +90,7 @@ class JoJoTankSensor(SensorEntity):
         else:
             data = runtime[DATA_LATEST]
             value = self.entity_description.value_fn(data, self.entry) if self.entity_description.value_fn else None
-        if self.entity_description.key in {"level", "volume", "depth", "current", "raw_adc", "voltage", "wifi", "uptime"}:
+        if self.entity_description.key in {"level", "volume", "depth", "current", "raw_adc", "voltage", "wifi", "uptime", "raw_depth", "temperature_correction", "ambient_temperature", "compensation_status"}:
             self._attr_extra_state_attributes = {"stale": not runtime[DATA_ONLINE]}
         if isinstance(value, float) and self.entity_description.key in {"level", "volume", "depth", "current", "minimum_level", "estimation_reserve_level", "raw_adc", "voltage", "wifi", "uptime", "last_refill_amount"}:
             value = round(value, 2)

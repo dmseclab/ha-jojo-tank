@@ -41,14 +41,32 @@ def current(data: dict, entry) -> float | None:
     return finite_float(voltage / resistor)
 
 
-def level(data: dict, entry) -> float | None:
+def raw_depth(data: dict, entry) -> float | None:
+    """Unclamped physical depth; keep above-full readings for diagnostics."""
     measured = current(data, entry)
     empty = finite_float(setting(entry, CONF_EMPTY_CURRENT))
     full = finite_float(setting(entry, CONF_FULL_CURRENT))
-    if measured is None or empty is None or full is None or full <= empty:
+    height = finite_float(setting(entry, CONF_TANK_HEIGHT))
+    if measured is None or empty is None or full is None or height is None or full <= empty or height <= 0:
         return None
-    percent = finite_float((measured - empty) / (full - empty) * 100.0)
-    return None if percent is None else max(0.0, min(100.0, percent))
+    value = finite_float((measured - empty) / (full - empty) * height)
+    return None if value is None else max(0.0, value)
+
+
+def depth(data: dict, entry) -> float | None:
+    raw = raw_depth(data, entry)
+    if raw is None:
+        return None
+    correction = finite_float(data.get("_temperature_correction_mm", 0.0)) or 0.0
+    return finite_float(raw + max(0.0, min(100.0, correction)))
+
+
+def level(data: dict, entry) -> float | None:
+    measured = depth(data, entry)
+    height = finite_float(setting(entry, CONF_TANK_HEIGHT))
+    if measured is None or height is None or height <= 0:
+        return None
+    return max(0.0, min(100.0, measured / height * 100.0))
 
 
 def _scaled_level(data: dict, entry, key: str) -> float | None:
@@ -61,7 +79,3 @@ def _scaled_level(data: dict, entry, key: str) -> float | None:
 
 def volume(data: dict, entry) -> float | None:
     return _scaled_level(data, entry, CONF_TANK_CAPACITY)
-
-
-def depth(data: dict, entry) -> float | None:
-    return _scaled_level(data, entry, CONF_TANK_HEIGHT)
