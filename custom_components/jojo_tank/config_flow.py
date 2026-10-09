@@ -11,6 +11,7 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .calculations import finite_float
+from .const import (CONF_TEMPERATURE_COMPENSATION, CONF_WEATHER_ENTITY, CONF_TEMPERATURE_REFERENCE, CONF_TEMPERATURE_COEFFICIENT, CONF_TEMPERATURE_CAP, DEFAULT_TEMPERATURE_COMPENSATION, DEFAULT_WEATHER_ENTITY, DEFAULT_TEMPERATURE_REFERENCE, DEFAULT_TEMPERATURE_COEFFICIENT, DEFAULT_TEMPERATURE_CAP)
 from .const import (
     CONF_EMPTY_CURRENT, CONF_ESTIMATION_RESERVE_LEVEL, CONF_FULL_CURRENT,
     CONF_MINIMUM_LEVEL, CONF_MQTT_TOPIC, CONF_REFILL_THRESHOLD,
@@ -37,6 +38,17 @@ def _validate(values: dict[str, Any]) -> dict[str, str]:
     ):
         if key in values and finite_float(values[key]) is None:
             errors[key] = "invalid_number"
+    for key, low, high, default in (
+        (CONF_TEMPERATURE_REFERENCE, 0, 45, DEFAULT_TEMPERATURE_REFERENCE),
+        (CONF_TEMPERATURE_COEFFICIENT, 0, 10, DEFAULT_TEMPERATURE_COEFFICIENT),
+        (CONF_TEMPERATURE_CAP, 0, 100, DEFAULT_TEMPERATURE_CAP),
+    ):
+        value = finite_float(values.get(key, default))
+        if value is None or not low <= value <= high:
+            errors[key] = "temperature_setting_range"
+    entity = values.get(CONF_WEATHER_ENTITY, DEFAULT_WEATHER_ENTITY)
+    if not isinstance(entity, str) or not entity.startswith("weather.") or not entity[8:] or any(char.isspace() for char in entity):
+        errors[CONF_WEATHER_ENTITY] = "invalid_weather_entity"
     if errors:
         return errors
     if values[CONF_FULL_CURRENT] <= values[CONF_EMPTY_CURRENT]:
@@ -76,6 +88,13 @@ def _schema(defaults: dict[str, Any], include_identity: bool = True) -> vol.Sche
         vol.Required(CONF_TELEMETRY_TIMEOUT, default=defaults.get(CONF_TELEMETRY_TIMEOUT, DEFAULT_TELEMETRY_TIMEOUT)): vol.Coerce(float),
         vol.Required(CONF_MINIMUM_LEVEL, default=defaults.get(CONF_MINIMUM_LEVEL, DEFAULT_MINIMUM_LEVEL)): vol.Coerce(float),
         vol.Required(CONF_ESTIMATION_RESERVE_LEVEL, default=defaults.get(CONF_ESTIMATION_RESERVE_LEVEL, DEFAULT_ESTIMATION_RESERVE_LEVEL)): vol.Coerce(float),
+    })
+    fields.update({
+        vol.Required(CONF_TEMPERATURE_COMPENSATION, default=defaults.get(CONF_TEMPERATURE_COMPENSATION, DEFAULT_TEMPERATURE_COMPENSATION)): bool,
+        vol.Required(CONF_WEATHER_ENTITY, default=defaults.get(CONF_WEATHER_ENTITY, DEFAULT_WEATHER_ENTITY)): str,
+        vol.Required(CONF_TEMPERATURE_REFERENCE, default=defaults.get(CONF_TEMPERATURE_REFERENCE, DEFAULT_TEMPERATURE_REFERENCE)): vol.Coerce(float),
+        vol.Required(CONF_TEMPERATURE_COEFFICIENT, default=defaults.get(CONF_TEMPERATURE_COEFFICIENT, DEFAULT_TEMPERATURE_COEFFICIENT)): vol.Coerce(float),
+        vol.Required(CONF_TEMPERATURE_CAP, default=defaults.get(CONF_TEMPERATURE_CAP, DEFAULT_TEMPERATURE_CAP)): vol.Coerce(float),
     })
     return vol.Schema(fields)
 

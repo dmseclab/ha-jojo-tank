@@ -25,6 +25,26 @@ This project is useful for anyone looking for a **Home Assistant water tank moni
 - Local processing with no cloud service required
 - MIT licensed
 
+## Ambient temperature correction (0.6.2 beta)
+
+Optional correction uses the current `temperature` attribute of a Home Assistant weather entity, default `weather.forecast_home`. No firmware change is required. Enable it in **Configure → Tank Settings** after installing this beta. Existing installations remain disabled until explicitly enabled.
+
+Trial defaults are **20°C reference**, **5 mm/°C**, and **75 mm maximum**:
+
+`corrected depth = raw depth + min(75, max(0, temperature_C - 20) × 5)`
+
+These are conservative starting settings, **not coefficients fitted to weather history**. The available August–October CSV contains `sensor.temp_1_temperature`, not the weather entity's temperature attribute. Consumption, refills and historical aggregation confound the apparent thermal slopes. The beta does not establish ±5% accuracy throughout the tank's operating range.
+
+For illustration, 1755 mm at 35°C becomes 1830 mm, 3.7% below a 1900 mm manual reference. This assumes the weather temperature really is 35°C at that reading. The default usable full reference is now 1900 mm, based on repeated manual full readings; capacity remains 5250 L in the reference build. Existing installations must change Tank height to 1900 mm in Configure → Tank Settings: changing the default does not overwrite saved calibration. Empty and full currents remain unchanged. This height adjustment also scales raw calculated depth, so a reading previously calculated as 1755 mm at a height of 1850 mm becomes about 1802 mm before temperature correction. Physical depth can exceed the full reference; percentage and litres stop at 100% and configured capacity.
+
+New diagnostics show **Raw Water Depth**, **Compensation Temperature**, **Temperature Correction**, and **Temperature Compensation** status. ADC, voltage and current remain unchanged. Correction is applied only to live MQTT snapshots. Offline readings keep their last known values; restored corrected snapshots remain marked stale until live telemetry arrives.
+
+Weather must have a finite temperature in °C or °F, attributes updated within two hours, and a converted temperature within 0–45°C. Missing, unavailable, stale or invalid weather uses raw depth on the next live measurement. Correction is disabled for an empty raw measurement. Settings permit a 0–45°C reference, 0–10 mm/°C coefficient, and a hard 100 mm maximum cap.
+
+Refill tracking shifts its stored detection values by the correction-only volume change, including weather fallback. A weather change alone cannot produce a refill. This guard does not identify every slow physical sensor recovery as temperature drift; physical refill accuracy still requires operational verification.
+
+Disable the option to return to raw depth on the next live reading. This beta changes the depth display from an upper-clamped usable depth to physical depth; level and volume retain their existing limits.
+
 ## Reference Hardware
 
 The current reference installation uses:
@@ -75,7 +95,7 @@ The HACS custom integration is the primary Home Assistant implementation. It pro
 | Setting | Reference value |
 | --- | ---: |
 | Tank capacity | 5,250 L |
-| Tank height | 1,850 mm |
+| Usable full water depth | 1,900 mm |
 | Empty calibration | 4.00 mA |
 | Full calibration | 11.50 mA |
 | Sense resistor | 120 ohm |

@@ -14,6 +14,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.storage import Store
 
+from .compensation import apply_compensation
 from .calculations import finite_float, payload_float, setting as _setting, volume as _volume_from_payload
 from .const import (
     CONF_MQTT_TOPIC, CONF_REFILL_THRESHOLD, CONF_REFILL_TIMEOUT, CONF_TANK_CAPACITY,
@@ -125,7 +126,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         runtime[DATA_LATEST] = {}
         runtime["last_reading"] = None
     else:
-        runtime[DATA_LATEST] = _telemetry_snapshot(runtime[DATA_LATEST])
+        original = runtime[DATA_LATEST]
+        runtime[DATA_LATEST] = _telemetry_snapshot(original)
+        # Preserve last known corrected depth while offline after reload.
+        if _setting(entry, "temperature_compensation", False):
+            correction = finite_float(original.get("_temperature_correction_mm"))
+            if correction is not None and 0 <= correction <= 100:
+                runtime[DATA_LATEST]["_temperature_correction_mm"] = correction
+                runtime[DATA_LATEST]["_compensation_status"] = "Saved measurement; waiting for live telemetry"
+                temperature = finite_float(original.get("_ambient_temperature_c"))
+                if temperature is not None:
+                    runtime[DATA_LATEST]["_ambient_temperature_c"] = temperature
     hass.data[DOMAIN][entry.entry_id] = runtime
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
@@ -200,6 +211,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         runtime[DATA_REFILL_END_VOLUME] = None
         runtime[DATA_PREVIOUS_VOLUME] = volume
         runtime["previous_uptime"] = uptime
+        runtime.pop("correction_volume_delta", None)
         runtime["volume_samples"].clear()
         runtime["baseline_samples"].clear()
         runtime["volume_samples"].append(volume)
@@ -228,6 +240,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         volume = _volume_from_payload(payload, entry)
         if volume is None:
             return
+
+        # Shift stored detection coordinates by the correction-only volume
+        # change. Weather updates/fallbacks cannot manufacture a refill rise.
+        adjustment = runtime.pop("correction_volume_delta", 0.0)
+        if adjustment:
+            for key in ("volume_samples", "baseline_samples"):
+                samples_to_shift = runtime[key]
+                shifted = [value + adjustment for value in samples_to_shift]
+                samples_to_shift.clear()
+                samples_to_shift.extend(shifted)
+            for key in (DATA_REFILL_START_VOLUME, DATA_REFILL_END_VOLUME, "refill_candidate_start"):
+                if runtime.get(key) is not None:
+                    runtime[key] += adjustment
 
         uptime = _uptime_from_payload(payload)
         previous_uptime = runtime.get("previous_uptime")
@@ -370,6 +395,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 reset_refill_tracking(_volume_from_payload(payload, entry), _uptime_from_payload(payload))
                 async_dispatcher_send(hass, f"{SIGNAL_UPDATE}_{entry.entry_id}")
             return
+        previous_payload = runtime[DATA_LATEST]
+        # Compare this same raw measurement under both corrections; using
+        # volume() accounts for the configured full/capacity clamp.
+        apply_compensation(payload, entry, hass, now)
+        old_basis = dict(payload)
+        old_basis["_temperature_correction_mm"] = previous_payload.get("_temperature_correction_mm", 0.0)
+        runtime["correction_volume_delta"] = (
+            _volume_from_payload(payload, entry) - _volume_from_payload(old_basis, entry)
+        )
         runtime["last_reading"] = now
         runtime[DATA_LATEST] = payload
         # Retained startup data may populate the display, but is not evidence
