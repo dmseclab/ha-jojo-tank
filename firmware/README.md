@@ -2,7 +2,7 @@
 
 This folder contains the Arduino firmware used by the JoJo Tank Monitor reference installation.
 
-The prepared firmware is **6.1.0**, intended for the next hardware reflash. The reference installation was still on 6.0.0 when these changes were prepared. The sketch is located at:
+The current firmware is **6.1.0** and is installed in the reference setup. The sketch is located at:
 
 ```text
 arduino_uno_r4_wifi/jojo_tank_mqtt.ino
@@ -84,11 +84,11 @@ Tank capacity, tank height, empty/full calibration, calculated percentage, avail
 
 The reference firmware publishes measurements every five minutes.
 
-Firmware 6.1.0 keeps the 20-sample ADC average as a float rather than truncating it to an integer. `raw_adc` can now contain decimals, voltage is published to two decimal places in mV and current to four in mA. ADC resolution is explicitly kept at 10 bits (maximum 1023) for the first comparison reflash. This preserves the voltage scale; higher resolution requires a separate change to both resolution and maximum count, followed by measurement validation. More decimal places do not establish corresponding sensor accuracy.
+Firmware 6.1.0 keeps the 20-sample ADC average as a float rather than truncating it to an integer. `raw_adc` can now contain decimals, voltage is published to two decimal places in mV and current to four in mA. ADC resolution is explicitly kept at 10 bits (maximum 1023) to preserve the existing measurement scale. This preserves the voltage scale; higher resolution requires a separate change to both resolution and maximum count, followed by measurement validation. More decimal places do not establish corresponding sensor accuracy.
 
 `ENABLE_MQTT_DISCOVERY` defaults to `true` to preserve existing discovery-based dashboards. Set it to `false` for a new custom-integration-only installation. This does not remove old retained discovery configurations. Export/check entity dependencies before removing legacy discovery data manually.
 
-See the [Saturday reflash checklist](../docs/validation-0.6.1.md). Retain your local Wi-Fi and broker settings when preparing the upload. No broker or Home Assistant IP change is required.
+Retain your local Wi-Fi and broker settings when preparing an upload. No broker or Home Assistant IP change is required. Tank height, capacity and optional weather correction are configured in Home Assistant.
 
 ## Upload and initial test
 

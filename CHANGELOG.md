@@ -22,7 +22,7 @@
 - Extend unit regressions and add firmware compilation to CI.
 - Firmware 6.1.0 preserves fractional ADC averages and finer telemetry precision; retains the existing 10-bit scale and five-minute interval. Add optional MQTT discovery, enabled by default.
 
-See [0.6.1 evaluation and Saturday reflash](docs/validation-0.6.1.md). This does not yet establish physical refill accuracy or hardware stability of the new firmware.
+Automated checks do not establish physical refill accuracy or long-term hardware stability.
 
 ## 0.6.0 — 2026-10-07
 
@@ -37,4 +37,4 @@ See [0.6.1 evaluation and Saturday reflash](docs/validation-0.6.1.md). This does
 - Coalesce refill storage writes and flush on integration unload.
 - Add deterministic regression tests, a sparse-history replay tool and GitHub Actions checks.
 
-See [validation and upgrade](docs/validation-0.6.0.md). This version does not complete the v1.0 clean-install or physical refill validation.
+Clean-install and physical refill validation remain required before v1.0.

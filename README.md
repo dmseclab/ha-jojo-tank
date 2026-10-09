@@ -25,25 +25,23 @@ This project is useful for anyone looking for a **Home Assistant water tank moni
 - Local processing with no cloud service required
 - MIT licensed
 
-## Ambient temperature correction (0.6.2 beta)
+## Optional ambient temperature correction
 
-Optional correction uses the current `temperature` attribute of a Home Assistant weather entity, default `weather.forecast_home`. No firmware change is required. Enable it in **Configure → Tank Settings** after installing this beta. Existing installations remain disabled until explicitly enabled.
+Temperature correction is **disabled by default**. Keep it disabled while raw readings meet your accuracy target. Enable it only after comparing simultaneous manual and electronic depths: an unnecessary correction can make a good reading worse.
 
-Trial defaults are **20°C reference**, **5 mm/°C**, and **75 mm maximum**:
+In **Configure → Tank Settings**, select a weather entity (default `weather.forecast_home`). The integration reads its current `temperature` attribute when a live Arduino measurement arrives, not a future forecast temperature.
+
+Default trial settings are a **20°C reference**, **5 mm/°C**, and **75 mm maximum**:
 
 `corrected depth = raw depth + min(75, max(0, temperature_C - 20) × 5)`
 
-These are conservative starting settings, **not coefficients fitted to weather history**. The available August–October CSV contains `sensor.temp_1_temperature`, not the weather entity's temperature attribute. Consumption, refills and historical aggregation confound the apparent thermal slopes. The beta does not establish ±5% accuracy throughout the tank's operating range.
+These settings are provisional, not a validated temperature model or a guarantee of ±5% accuracy. Diagnostics show **Raw Water Depth**, **Compensation Temperature**, **Temperature Correction**, and **Temperature Compensation** status. Raw ADC, voltage and current are unchanged.
 
-For illustration, 1755 mm at 35°C becomes 1830 mm, 3.7% below a 1900 mm manual reference. This assumes the weather temperature really is 35°C at that reading. The default usable full reference is now 1900 mm, based on repeated manual full readings; capacity remains 5250 L in the reference build. Existing installations must change Tank height to 1900 mm in Configure → Tank Settings: changing the default does not overwrite saved calibration. Empty and full currents remain unchanged. This height adjustment also scales raw calculated depth, so a reading previously calculated as 1755 mm at a height of 1850 mm becomes about 1802 mm before temperature correction. Physical depth can exceed the full reference; percentage and litres stop at 100% and configured capacity.
+Weather must have a finite temperature in °C or °F, attributes updated within two hours, and a converted temperature within 0–45°C. Invalid, unavailable or stale weather uses raw depth on the next live measurement. Empty raw measurements receive no correction. Settings allow a 0–45°C reference, 0–10 mm/°C coefficient and a hard 100 mm maximum cap.
 
-New diagnostics show **Raw Water Depth**, **Compensation Temperature**, **Temperature Correction**, and **Temperature Compensation** status. ADC, voltage and current remain unchanged. Correction is applied only to live MQTT snapshots. Offline readings keep their last known values; restored corrected snapshots remain marked stale until live telemetry arrives.
+The default full water depth is **1900 mm**, with **5250 L** capacity. Existing installations retain saved settings; update Tank height explicitly if required. Physical depth can exceed the full reference, while percentage and litres remain capped at 100% and configured capacity.
 
-Weather must have a finite temperature in °C or °F, attributes updated within two hours, and a converted temperature within 0–45°C. Missing, unavailable, stale or invalid weather uses raw depth on the next live measurement. Correction is disabled for an empty raw measurement. Settings permit a 0–45°C reference, 0–10 mm/°C coefficient, and a hard 100 mm maximum cap.
-
-Refill tracking shifts its stored detection values by the correction-only volume change, including weather fallback. A weather change alone cannot produce a refill. This guard does not identify every slow physical sensor recovery as temperature drift; physical refill accuracy still requires operational verification.
-
-Disable the option to return to raw depth on the next live reading. This beta changes the depth display from an upper-clamped usable depth to physical depth; level and volume retain their existing limits.
+Offline measurements retain their last known values and are marked stale, including after reload. Correction-only changes shift refill detection values so weather updates alone cannot produce a refill rise. Slow sensor recovery still requires physical refill verification.
 
 ## Reference Hardware
 
@@ -86,7 +84,7 @@ git clone https://github.com/dmseclab/ha-jojo-tank.git
 
 ## Current Project Status
 
-> **Current development version on main:** v0.6.1. The project is still undergoing real-world validation before v1.0.0.
+> **Current integration release:** v0.6.2-beta.1. **Arduino firmware:** 6.1.0. The project is still undergoing real-world validation before v1.0.0.
 
 The HACS custom integration is the primary Home Assistant implementation. It provides native tank calculations, configurable calibration, refill detection/history, configurable low-water threshold with hysteresis, independent estimation reserve level and diagnostics. The legacy YAML/template calculation layer has been removed from the reference installation.
 
@@ -109,7 +107,7 @@ The HACS custom integration is the primary Home Assistant implementation. It pro
 
 ## Refill Detection and History
 
-Version 0.6.1 uses **exactly the configured refill threshold**. There is no hidden minimum or capacity percentage override. The default is 75 L; the diagnostic Refill Threshold entity shows the active value. Refill detection still uses a median of five readings, a recent low-water baseline and three consecutive filtered confirmations. The threshold applies to the sustained filtered rise, so brief physical top-ups may still be missed. Lower settings are more sensitive to measurement recovery; use an explicit 210 L setting if you want the earlier beta's conservative threshold on the reference tank.
+The integration uses **exactly the configured refill threshold**. There is no hidden minimum or capacity percentage override. The default is 75 L; the diagnostic Refill Threshold entity shows the active value. Refill detection still uses a median of five readings, a recent low-water baseline and three consecutive filtered confirmations. The threshold applies to the sustained filtered rise, so brief physical top-ups may still be missed. Lower settings are more sensitive to measurement recovery; use an explicit 210 L setting if you want the earlier beta's conservative threshold on the reference tank.
 
 At the reference five-minute publish interval, the filter needs about 20 minutes after a sustained step before confirmation, once its baseline is established. Tank level, available water, depth and raw diagnostics remain unsmoothed. Only refill detection is filtered.
 
@@ -125,7 +123,7 @@ Device restarts, expired telemetry and long telemetry gaps establish a new basel
 
 **Clear Refill Data** clears stored events, the last refill amount/time, active timers and detection candidates. It leaves Home Assistant Recorder statistics in place.
 
-For changes, validation findings and upgrade steps, see [CHANGELOG](CHANGELOG.md) and [0.6.1 validation and Saturday reflash](docs/validation-0.6.1.md).
+For release changes, see [CHANGELOG](CHANGELOG.md). Firmware upload instructions are in the [firmware guide](firmware/README.md).
 
 ## Last Known Values and Connectivity
 
@@ -177,8 +175,8 @@ The reference Home Assistant installation uses native Recorder with 60-day reten
 - [ ] Confirm a completed refill creates one correct history row after the 15-minute timeout
 - [ ] Verify refill history survives a Home Assistant restart after a real event is stored
 - [ ] Continue real-world validation of Low Water threshold/hysteresis behaviour
-- [x] Compare explicit 75 L and 210 L settings on September and October history
-- [x] Verify setup, MQTT dispatch, expiry, recovery, settings and reload in a real HA test runtime
+- [x] Verify setup, MQTT dispatch, expiry, recovery, settings, weather fallback and reload in a real HA test runtime
+- [x] Upload firmware 6.1.0 and confirm live telemetry in the reference installation
 
 ### Before v1.0 stable
 
@@ -198,6 +196,33 @@ The reference Home Assistant installation uses native Recorder with 60-day reten
 - [ ] Additional notifications/automation examples
 - [ ] Multiple-tank support
 - [ ] Reconsider InfluxDB/Grafana if future telemetry justifies it
+
+## Development checks
+
+Run deterministic regressions and syntax checks from the repository root:
+
+```bash
+python -m unittest discover -s tests -v
+python -m compileall -q custom_components tests tools ha_tests
+```
+
+Real Home Assistant tests use the pinned compatibility baseline in `requirements-test-ha.txt` with Python 3.13:
+
+```bash
+python3.13 -m venv .venv
+.venv/bin/python -m pip install -r requirements-test-ha.txt
+.venv/bin/python -m pytest ha_tests -q
+```
+
+MQTT transport is mocked; entities, callbacks and storage run in Home Assistant. The baseline does not establish compatibility with every HA version. GitHub Actions also compiles the UNO R4 WiFi firmware with the dependency versions listed in the firmware guide.
+
+The optional history replay tool accepts Home Assistant `entity_id,state,last_changed` CSV exports:
+
+```bash
+python tools/replay_history.py /path/to/history.csv --threshold 75
+```
+
+Replay reconstructs sparse states and cannot verify actual refill quantities or recover omitted MQTT metadata. Match its reference calibration to your installation before interpreting results.
 
 ## Security and Repository Governance
 
