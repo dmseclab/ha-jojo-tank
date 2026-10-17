@@ -1,9 +1,21 @@
 # Changelog
 
+## 1.0.0 — 2026-10-17
+
+- Promote JoJo Tank Monitor to the first stable Home Assistant integration release after clean-install acceptance testing on a fresh Home Assistant OS/HACS environment.
+- Complete real-world soak validation of the 1900 mm / 5250 L reference installation and close physical refill-detection validation using October 2026 Home Assistant history.
+- Keep the validated 75 L refill threshold and five-minute reference telemetry interval.
+- Validate first telemetry, tank calculations, low-water behaviour, refill detection/closeout, single-event history, telemetry expiry, last-known values, recovery, restart persistence and settings changes end-to-end.
+- Add a documented clean-install end-to-end acceptance plan and isolated MQTT telemetry simulator.
+- Add installation/calibration and troubleshooting guides.
+- Add local Home Assistant integration branding.
+- Reference DFRobot's official 4–20 mA liquid-level wiring example and document the reference UNO R4 WiFi A2 signal input.
+- Keep temperature compensation optional and disabled by default.
+- Keep Arduino firmware 6.1.0 as the validated production firmware for this integration release. Firmware changes, including removal of legacy MQTT Discovery, are deferred to a separate firmware validation/release cycle.
+
 ## 0.6.2-beta.1 — 2026-10-09
 
 - Set the default usable full depth to 1900 mm; keep capacity at 5250 L. Existing entries require the Tank height option to be updated explicitly.
-
 - Add opt-in, configurable ambient-weather correction with a 75 mm trial cap and 100 mm hard limit.
 - Expose raw physical depth, compensation temperature, applied correction and status; preserve raw electrical diagnostics.
 - Allow physical depth above configured full depth while retaining percentage/volume limits.
