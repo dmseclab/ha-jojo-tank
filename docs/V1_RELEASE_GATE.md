@@ -1,6 +1,6 @@
 # v1.0.0 release gate
 
-This file is the final release gate. Do not mark v1.0.0 released until every blocking item is complete.
+JoJo Tank Monitor integration v1.0.0 acceptance was completed on 2026-10-17.
 
 ## Completed before release-candidate testing
 
@@ -11,35 +11,38 @@ This file is the final release gate. Do not mark v1.0.0 released until every blo
 - [x] Last-known-value / Arduino Offline behaviour implemented and soak-tested.
 - [x] Temperature compensation remains optional and disabled by default for the reference installation.
 - [x] DFRobot official wiring example referenced; reference installation A2 input documented.
-- [x] Legacy Home Assistant MQTT Discovery publication removed from firmware 6.2.0 release candidate.
 - [x] Clean-install acceptance procedure documented.
 - [x] Isolated MQTT telemetry simulator added.
 - [x] Troubleshooting guide added.
-- [x] Historical development branches compared with main before cleanup; do not delete them until the v1 candidate is accepted.
 
-## Blocking user-side acceptance tests
+## Clean-install acceptance — PASS
 
-- [ ] Clean HACS install succeeds in a fresh/test Home Assistant runtime.
-- [ ] Simulated first telemetry creates/updates expected entities.
-- [ ] Low-water scenario behaves correctly.
-- [ ] Simulated sustained refill produces one correct completed history event.
-- [ ] Telemetry expiry preserves last-known values and marks them stale/offline.
-- [ ] Live telemetry recovery clears stale/offline state.
-- [ ] Home Assistant restart restores last-known values and completed refill history correctly.
-- [ ] Tank Settings can be changed and restored without recreating the integration.
-- [ ] Firmware 6.2.0 compiles for Arduino UNO R4 WiFi.
-- [ ] Firmware 6.2.0 is uploaded to the reference Arduino and live telemetry is confirmed.
-- [ ] Production Home Assistant continues receiving fresh data after the firmware change.
+Validated on a fresh Home Assistant OS 18.3 / Home Assistant Core 2026.10.2 test VM using HACS and `v1.0.0-rc.1`.
 
-## Final repository/release actions after acceptance
+- [x] Clean HACS install succeeds in a fresh Home Assistant runtime.
+- [x] Local integration branding/icon loads correctly.
+- [x] Simulated first telemetry creates/updates expected entities and calculations.
+- [x] Low-water scenario changes to Problem below the configured threshold and recovers correctly.
+- [x] Simulated sustained refill is detected and closes after the configured timeout.
+- [x] Exactly one completed refill-history event is stored for the simulated refill.
+- [x] Telemetry expiry preserves last-known values and marks the Arduino offline.
+- [x] Live telemetry recovery restores online state without creating a duplicate refill.
+- [x] Home Assistant restart restores last-known values and completed refill history without duplication.
+- [x] Tank Settings can be changed and restored without recreating the integration or losing refill history.
+- [x] Release-candidate regression workflow passed.
 
-- [ ] Confirm GitHub Actions/regression suite is green at the final candidate commit.
-- [ ] Update integration manifest version from beta to `1.0.0`.
-- [ ] Update README status/roadmap from release-candidate wording to v1 stable.
-- [ ] Change the changelog heading from release candidate to the actual release date.
-- [ ] Remove obsolete merged/superseded development branches after one final comparison.
-- [ ] Merge the release-preparation branch to protected `main` through the normal controlled workflow.
-- [ ] Tag and publish `v1.0.0` only from the accepted `main` commit.
-- [ ] Install the exact released v1.0.0 package in the reference Home Assistant installation and perform a final sanity check.
+## Integration / firmware release separation
+
+Arduino firmware is maintained as a related but separate release stream. Firmware 6.1.0 remains the validated production firmware at the time of the JoJo Tank Monitor integration v1.0.0 release. The proposed firmware changes that remove legacy Home Assistant MQTT Discovery will be physically tested and promoted separately; they do not block the Home Assistant integration v1.0.0 release.
+
+## Final repository/release actions
+
+- [x] Promote integration manifest to `1.0.0`.
+- [x] Record clean-install acceptance results.
+- [x] Separate unvalidated Arduino firmware changes from the integration v1 release.
+- [ ] Merge the accepted release-preparation branch to protected `main`.
+- [ ] Tag and publish `v1.0.0` from the accepted `main` commit.
+- [ ] Verify HACS sees the stable v1.0.0 release.
+- [ ] Complete post-release branch/repository cleanup.
 
 Future usage statistics, leak detection, additional reports and multiple-tank enhancements are post-v1 features and do not block this release.
