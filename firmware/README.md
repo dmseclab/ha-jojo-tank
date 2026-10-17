@@ -2,59 +2,40 @@
 
 This folder contains the Arduino firmware used by the JoJo Tank Monitor reference installation.
 
-The current firmware is **6.1.0** and is installed in the reference setup. The sketch is located at:
+The v1 release candidate firmware is **6.2.0**. The sketch is located at:
 
 ```text
 arduino_uno_r4_wifi/jojo_tank_mqtt.ino
 ```
 
-## Reference hardware
+## Reference hardware and wiring
 
-- Arduino UNO R4 WiFi-compatible board
-- DFRobot SEN0262-family submersible liquid-level / pressure sensor
-- Sensor interface/converter
+The reference installation uses:
+
+- Arduino UNO R4 WiFi
+- DFRobot SEN0262 current-to-voltage module / interface
+- 4–20 mA submersible liquid-level sensor
 - 120 ohm sense resistor
-- Sensor connected to analog input `A2`
+- 24 V sensor supply
+- Sensor signal connected to Arduino analog input `A2`
+
+The physical installation follows DFRobot's standard 4–20 mA liquid-level example closely. Use the official DFRobot diagram and instructions as the reference wiring source:
+
+https://wiki.dfrobot.com/kit0139/docs/18950
+
+The DFRobot page is a reference circuit, not a guarantee that every third-party 4–20 mA transmitter is wired identically. Verify the transmitter supply voltage, polarity, current-loop terminals, converter/module configuration and Arduino pinout against the hardware actually being installed before applying power. The reference JoJo installation uses A2; change `ANALOG_PIN` in the sketch if another analog input is used.
 
 ## Arduino IDE requirements
 
-Before compiling the firmware, install/select the Arduino UNO R4 WiFi board support package in Arduino IDE.
+Install/select the Arduino UNO R4 WiFi board support package in Arduino IDE. The sketch uses `WiFiS3`, `ArduinoMqttClient` and `ArduinoJson`.
 
-The sketch uses these libraries:
+The CI build pins ArduinoMqttClient 0.1.8, ArduinoJson 6.21.5 and Arduino Renesas UNO board core 1.6.0. Select those versions to reproduce the verified build.
 
-| Library | Source | Notes |
-| --- | --- | --- |
-| `WiFiS3` | Arduino UNO R4 WiFi board package | Normally installed with the board support package |
-| `ArduinoMqttClient` | Arduino | Install using Arduino IDE Library Manager |
-| `ArduinoJson` | Benoit Blanchon | Install using Arduino IDE Library Manager |
-
-The CI build pins `ArduinoMqttClient` 0.1.8, `ArduinoJson` 6.21.5 and the Arduino Renesas UNO board core 1.6.0. Select those versions to reproduce the verified build.
-
-### Installing the required libraries
-
-In Arduino IDE:
-
-1. Open **Tools -> Manage Libraries...** or open **Library Manager** from the sidebar.
-2. Search for `ArduinoMqttClient`.
-3. Install **ArduinoMqttClient by Arduino**.
-4. Search for `ArduinoJson`.
-5. Install **ArduinoJson by Benoit Blanchon**.
-6. Select the correct Arduino UNO R4 WiFi board and COM/serial port.
-7. Open `jojo_tank_mqtt.ino` and click **Verify** before uploading.
-
-If compilation reports:
-
-```text
-fatal error: ArduinoMqttClient.h: No such file or directory
-```
-
-install `ArduinoMqttClient` from Library Manager and compile again.
-
-If compilation reports that `ArduinoJson.h` cannot be found, install `ArduinoJson` from Library Manager.
+If compilation reports `ArduinoMqttClient.h: No such file or directory`, install ArduinoMqttClient from Library Manager. If `ArduinoJson.h` cannot be found, install ArduinoJson from Library Manager.
 
 ## Configure Wi-Fi and MQTT
 
-Before uploading, edit only the installation-specific values in the `USER CONFIG` section of the sketch:
+Before uploading, edit only the installation-specific values in the `USER CONFIG` section:
 
 ```cpp
 const char* WIFI_SSID     = "YOUR_WIFI_SSID";
@@ -65,49 +46,45 @@ const char* MQTT_USER     = "YOUR_MQTT_USERNAME";
 const char* MQTT_PASS     = "YOUR_MQTT_PASSWORD";
 ```
 
-Do not commit real Wi-Fi passwords, MQTT passwords, tokens, or other credentials to the public repository.
+Never commit real Wi-Fi passwords, MQTT passwords, Home Assistant tokens or other credentials to the public repository.
 
 ## Firmware behaviour
 
-Revision 6 is intentionally a raw sensor publisher. The Arduino publishes raw measurement and diagnostic data over MQTT; tank-specific calculations are performed by the JoJo Tank Monitor Home Assistant integration.
+Revision 6.2 is intentionally a raw MQTT telemetry publisher. Home Assistant entity creation and all tank-specific calculations belong to the JoJo Tank Monitor custom integration. The firmware does **not** publish Home Assistant MQTT Discovery configuration.
 
-Current raw/diagnostic data includes:
+Published data includes raw ADC, sensor voltage, sensor current, Wi-Fi signal strength, uptime and firmware version. The reference firmware publishes every five minutes to:
 
-- Raw ADC
-- Sensor voltage
-- Sensor current
-- Wi-Fi signal strength
-- Uptime
-- Firmware version
+```text
+homeassistant/sensor/jojo_tank/state
+```
 
-Tank capacity, tank height, empty/full calibration, calculated percentage, available litres, water depth and refill detection belong to the Home Assistant integration rather than the Arduino firmware.
+Example payload:
 
-The reference firmware publishes measurements every five minutes.
+```json
+{"raw_adc":281.0,"voltage_mv":1373.41,"current_raw_ma":11.4451,"wifi_rssi":-55,"uptime_seconds":3600,"firmware":"6.2.0"}
+```
 
-Firmware 6.1.0 keeps the 20-sample ADC average as a float rather than truncating it to an integer. `raw_adc` can now contain decimals, voltage is published to two decimal places in mV and current to four in mA. ADC resolution is explicitly kept at 10 bits (maximum 1023) to preserve the existing measurement scale. This preserves the voltage scale; higher resolution requires a separate change to both resolution and maximum count, followed by measurement validation. More decimal places do not establish corresponding sensor accuracy.
+Tank capacity, tank height, empty/full calibration, percentage, available litres, water depth, low-water state, refill detection/history and optional temperature correction are handled by the Home Assistant integration.
 
-`ENABLE_MQTT_DISCOVERY` defaults to `true` to preserve existing discovery-based dashboards. Set it to `false` for a new custom-integration-only installation. This does not remove old retained discovery configurations. Export/check entity dependencies before removing legacy discovery data manually.
+The firmware keeps the 20-sample ADC average as a float and explicitly uses 10-bit ADC resolution (maximum 1023) to preserve the validated measurement scale. More decimal places do not imply corresponding sensor accuracy.
 
-Retain your local Wi-Fi and broker settings when preparing an upload. No broker or Home Assistant IP change is required. Tank height, capacity and optional weather correction are configured in Home Assistant.
+### Upgrading from firmware 6.1.0 or older
+
+Firmware 6.2.0 removes legacy Home Assistant MQTT Discovery publication. Previously retained discovery `config` topics may remain in the MQTT broker after upgrading because retained messages survive firmware replacement. Remove obsolete discovery entities/configuration only after confirming that the JoJo Tank Monitor custom integration is receiving live telemetry. Do not delete the raw state topic used by the integration.
 
 ## Upload and initial test
 
-After a successful upload, open **Serial Monitor** at **9600 baud**. A normal startup should show Wi-Fi connection, MQTT connection, Home Assistant discovery publication and a raw sensor reading.
-
-Example sequence:
+After a successful upload, open Serial Monitor at **9600 baud**. A normal startup should resemble:
 
 ```text
-JoJo Tank Raw Monitor - Revision 6
-Firmware: 6.1.0
+JoJo Tank Raw Monitor - Revision 6.2
+Firmware: 6.2.0
 Publish interval: 5 minutes
 Connecting to WiFi...
 WiFi OK - IP: ...
 Connecting to MQTT... MQTT OK
-Removing obsolete Rev 5a discovery entities...
-Publishing Rev 6 Home Assistant discovery...
-Discovery complete.
 Raw ADC: ... | Voltage: ... mV | Current: ... mA | RSSI: ... dBm
 MQTT state published.
 ```
 
-After installing the Arduino at the tank, confirm that the JoJo Tank Monitor integration in Home Assistant continues to receive fresh readings before removing any legacy MQTT or Home Assistant entities.
+Confirm in Home Assistant that `Arduino Online` becomes connected and that Raw ADC, Sensor Voltage, Sensor Current and Last Reading update before considering the upgrade complete.
