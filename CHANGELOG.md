@@ -1,16 +1,17 @@
 # Changelog
 
-## 1.0.0 — release candidate
+## 1.0.0 — 2026-10-17
 
+- Promote JoJo Tank Monitor to the first stable Home Assistant integration release after clean-install acceptance testing on a fresh Home Assistant OS/HACS environment.
 - Complete real-world soak validation of the 1900 mm / 5250 L reference installation and close physical refill-detection validation using October 2026 Home Assistant history.
-- Keep the validated 75 L refill threshold and five-minute telemetry interval for the reference installation.
+- Keep the validated 75 L refill threshold and five-minute reference telemetry interval.
+- Validate first telemetry, tank calculations, low-water behaviour, refill detection/closeout, single-event history, telemetry expiry, last-known values, recovery, restart persistence and settings changes end-to-end.
 - Add a documented clean-install end-to-end acceptance plan and isolated MQTT telemetry simulator.
-- Add a troubleshooting guide covering connectivity, stale/last-known values, calibration, refill behaviour, low-water state, legacy discovery, firmware and HACS.
+- Add installation/calibration and troubleshooting guides.
+- Add local Home Assistant integration branding.
 - Reference DFRobot's official 4–20 mA liquid-level wiring example and document the reference UNO R4 WiFi A2 signal input.
-- Prepare firmware 6.2.0: remove legacy Home Assistant MQTT Discovery publication and keep the Arduino focused on raw MQTT telemetry. Home Assistant entity ownership belongs to the JoJo Tank Monitor integration.
-- Temperature compensation remains optional and disabled by default.
-
-Version 1.0.0 must not be tagged/released until the documented clean-install acceptance test, production-side firmware/integration checks and final regression/firmware compilation checks pass.
+- Keep temperature compensation optional and disabled by default.
+- Keep Arduino firmware 6.1.0 as the validated production firmware for this integration release. Firmware changes, including removal of legacy MQTT Discovery, are deferred to a separate firmware validation/release cycle.
 
 ## 0.6.2-beta.1 — 2026-10-09
 
