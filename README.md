@@ -1,239 +1,109 @@
 # JoJo Water Tank Monitor for Home Assistant
 
-**JoJo Tank Monitor** is an open-source Home Assistant custom integration for monitoring **JoJo Tanks and other water storage tanks** using **MQTT**, an Arduino-compatible controller and a **4–20 mA water-level / pressure sensor**.
+**JoJo Tank Monitor** is an open-source Home Assistant custom integration for monitoring JoJo Tanks and other water-storage tanks from MQTT telemetry produced by an Arduino-compatible controller and a 4–20 mA level/pressure sensor.
 
-It converts raw tank-sensor telemetry into useful Home Assistant entities such as **water level percentage, water depth, volume in litres, low-water status, refill detection, refill history and diagnostics**. The reference build uses an Arduino UNO R4 WiFi with a submersible pressure sensor, but the Home Assistant integration is designed around MQTT data and configurable calibration values.
+The integration converts raw telemetry into tank percentage, water depth, available litres, low-water state, refill detection/history and diagnostics. Tank calibration and behaviour are configured in Home Assistant; the Arduino remains the telemetry source.
 
-This project is useful for anyone looking for a **Home Assistant water tank monitor**, **JoJo tank level sensor**, **MQTT water tank monitoring**, or a DIY **4–20 mA tank level monitoring** solution.
+## Stable release
+
+**JoJo Tank Monitor integration: v1.0.0**  
+**Validated reference Arduino firmware: 6.1.0**
+
+Integration v1.0.0 completed clean-install acceptance testing on a fresh Home Assistant OS/HACS environment on 2026-10-17. Arduino firmware is versioned and validated separately; firmware changes do not share the integration release lifecycle.
 
 ## Features
 
-- Home Assistant custom integration with Config Flow
+- Home Assistant custom integration with Config Flow and local branding
 - HACS-compatible repository structure
-- MQTT-based local communication
-- Tank level percentage
-- Water depth in millimetres
-- Calculated water volume in litres
-- Configurable tank capacity and tank height
-- Configurable empty/full current calibration
-- Raw ADC, voltage and current diagnostics
-- Wi-Fi, uptime and firmware diagnostics
+- MQTT-based local communication; no cloud service required
+- Tank percentage, water depth and calculated litres
+- Configurable capacity, height and empty/full current calibration
+- Raw ADC, voltage, current, Wi-Fi, uptime and firmware diagnostics
 - Configurable low-water threshold with hysteresis
 - Independent estimation reserve level
-- Refill detection and persistent refill history
-- Home Assistant Recorder support without requiring Grafana or InfluxDB
-- Local processing with no cloud service required
+- Filtered refill detection with persistent refill history
+- Last-known-value handling and Arduino Online status during telemetry loss
+- Persistent state/history across Home Assistant restarts
+- Optional ambient-temperature correction, disabled by default
+- Home Assistant Recorder support without requiring InfluxDB or Grafana
 - MIT licensed
-
-## Optional ambient temperature correction
-
-Temperature correction is **disabled by default**. Keep it disabled while raw readings meet your accuracy target. Enable it only after comparing simultaneous manual and electronic depths: an unnecessary correction can make a good reading worse.
-
-In **Configure → Tank Settings**, select a weather entity (default `weather.forecast_home`). The integration reads its current `temperature` attribute when a live Arduino measurement arrives, not a future forecast temperature.
-
-Default trial settings are a **20°C reference**, **5 mm/°C**, and **75 mm maximum**:
-
-`corrected depth = raw depth + min(75, max(0, temperature_C - 20) × 5)`
-
-These settings are provisional, not a validated temperature model or a guarantee of ±5% accuracy. Diagnostics show **Raw Water Depth**, **Compensation Temperature**, **Temperature Correction**, and **Temperature Compensation** status. Raw ADC, voltage and current are unchanged.
-
-Weather must have a finite temperature in °C or °F, attributes updated within two hours, and a converted temperature within 0–45°C. Invalid, unavailable or stale weather uses raw depth on the next live measurement. Empty raw measurements receive no correction. Settings allow a 0–45°C reference, 0–10 mm/°C coefficient and a hard 100 mm maximum cap.
-
-The default full water depth is **1900 mm**, with **5250 L** capacity. Existing installations retain saved settings; update Tank height explicitly if required. Physical depth can exceed the full reference, while percentage and litres remain capped at 100% and configured capacity.
-
-Offline measurements retain their last known values and are marked stale, including after reload. Correction-only changes shift refill detection values so weather updates alone cannot produce a refill rise. Slow sensor recovery still requires physical refill verification.
-
-## Reference Hardware
-
-The current reference installation uses:
-
-- JoJo 5,250 L vertical water tank
-- Arduino UNO R4 WiFi
-- 4–20 mA submersible pressure / level sensor
-- DFRobot SEN0262 current-to-voltage converter
-- 120 ohm sense resistor
-- 24 V sensor power supply
-- MQTT broker accessible to Home Assistant
-
-Other tank sizes and compatible MQTT sensor sources can be used by changing the integration calibration and tank settings.
 
 ## Installation with HACS
 
-Until the project is submitted to the default HACS repository, install it as a **custom repository**:
+Until the project is included in HACS defaults:
 
-1. Open **HACS** in Home Assistant.
-2. Go to **Integrations**.
-3. Open the HACS menu and choose **Custom repositories**.
-4. Add:
+1. Open HACS in Home Assistant.
+2. Add `https://github.com/dmseclab/ha-jojo-tank` as a custom repository of type **Integration**.
+3. Download **JoJo Tank Monitor** and restart Home Assistant if requested.
+4. Go to **Settings → Devices & services → Add Integration**.
+5. Search for **JoJo Tank Monitor** and complete the configuration flow.
 
-   ```text
-   https://github.com/dmseclab/ha-jojo-tank
-   ```
+See [Installation and calibration](docs/INSTALLATION.md) for the complete setup procedure and [Troubleshooting](docs/TROUBLESHOOTING.md) for operational diagnostics.
 
-5. Select **Integration** as the repository category.
-6. Find **JoJo Tank Monitor** in HACS and install it.
-7. Restart Home Assistant if prompted.
-8. Go to **Settings → Devices & services → Add Integration**.
-9. Search for **JoJo Tank Monitor** and complete the configuration flow.
+## Reference installation
 
-You can also download or clone the repository directly:
-
-```bash
-git clone https://github.com/dmseclab/ha-jojo-tank.git
-```
-
-## Current Project Status
-
-> **Current integration release:** v0.6.2-beta.1. **Arduino firmware:** 6.1.0. The project is still undergoing real-world validation before v1.0.0.
-
-The HACS custom integration is the primary Home Assistant implementation. It provides native tank calculations, configurable calibration, refill detection/history, configurable low-water threshold with hysteresis, independent estimation reserve level and diagnostics. The legacy YAML/template calculation layer has been removed from the reference installation.
-
-## Reference Installation Values
+The validated reference installation uses:
 
 | Setting | Reference value |
 | --- | ---: |
-| Tank capacity | 5,250 L |
+| Tank | JoJo vertical 5,250 L |
 | Usable full water depth | 1,900 mm |
+| Controller | Arduino UNO R4 WiFi |
+| Sensor/interface | 4–20 mA submersible sensor / DFRobot SEN0262 |
+| Arduino analog input | A2 |
 | Empty calibration | 4.00 mA |
 | Full calibration | 11.50 mA |
 | Sense resistor | 120 ohm |
 | Publish interval | 5 minutes |
-| Refill detection threshold | 75 L |
+| Refill threshold | 75 L |
 | Refill end timeout | 15 minutes |
-| Arduino offline timeout | 15 minutes (user configurable) |
-| Low water level | 20% (user configurable) |
-| Estimation reserve level | 10% (user configurable) |
+| Arduino offline timeout | 15 minutes |
+| Estimation reserve | 10% |
 | Refill history retention | 60 days / max 100 events |
 
-## Refill Detection and History
+These values describe the reference installation; other tanks/sensors must be calibrated to their own hardware.
 
-The integration uses **exactly the configured refill threshold**. There is no hidden minimum or capacity percentage override. The default is 75 L; the diagnostic Refill Threshold entity shows the active value. Refill detection still uses a median of five readings, a recent low-water baseline and three consecutive filtered confirmations. The threshold applies to the sustained filtered rise, so brief physical top-ups may still be missed. Lower settings are more sensitive to measurement recovery; use an explicit 210 L setting if you want the earlier beta's conservative threshold on the reference tank.
+## Refill detection and history
 
-At the reference five-minute publish interval, the filter needs about 20 minutes after a sustained step before confirmation, once its baseline is established. Tank level, available water, depth and raw diagnostics remain unsmoothed. Only refill detection is filtered.
+The configured refill threshold is authoritative. Refill detection uses recent readings and sustained filtered confirmation to reject sensor noise while the normal tank level/depth/volume entities remain unsmoothed. Completed events store the start volume, end volume, net amount and time, and persist across Home Assistant restarts.
 
-Once a refill is confirmed, its end volume follows the filtered high-water mark. Rising readings keep the close-out timer active while the median catches up, including slow refills. When readings stop rising for the configured timeout, the integration closes the event and records:
+Telemetry expiry does not erase the last valid tank reading. Instead, `Arduino Online` becomes disconnected and the retained measurements are marked stale. A later valid live payload restores normal online state. Retained MQTT startup data does not falsely prove live connectivity or create refill events.
 
-```text
-Refill amount = final refill volume - volume before refill
-```
+## Low water and temperature correction
 
-Completed events persist across Home Assistant restarts and contain `time`, `start_l`, `end_l` and `amount_l`. History is automatically limited to the latest 60 days and a maximum of 100 events.
+Low Water is configurable and uses hysteresis. Alarm automations should consider `Arduino Online` when deciding whether a level is current.
 
-Device restarts, expired telemetry and long telemetry gaps establish a new baseline. In-progress detection is discarded across those boundaries. Completed history is preserved. Retained startup messages can seed an empty display but do not establish a new Last Reading, prove connectivity, override a stored live measurement or count toward a refill.
+Ambient-temperature correction is optional and **disabled by default**. Enable it only when simultaneous physical/electronic measurements demonstrate a repeatable temperature-related error. Raw ADC, voltage and current are never altered by temperature correction.
 
-**Clear Refill Data** clears stored events, the last refill amount/time, active timers and detection candidates. It leaves Home Assistant Recorder statistics in place.
+## Documentation
 
-For release changes, see [CHANGELOG](CHANGELOG.md). Firmware upload instructions are in the [firmware guide](firmware/README.md).
+- [Documentation index](docs/README.md)
+- [Installation and calibration](docs/INSTALLATION.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Clean-install validation](docs/CLEAN_INSTALL_VALIDATION.md)
+- [v1.0.0 release gate](docs/V1_RELEASE_GATE.md)
+- [Arduino firmware](firmware/README.md)
+- [Changelog](CHANGELOG.md)
 
-## Last Known Values and Connectivity
-
-Tank measurements remain visible when telemetry stops. `Arduino Online` turns off after the configured timeout (15 minutes by default), and measurement entities receive `stale: true`. This status means no recent valid live MQTT measurement; it cannot distinguish Arduino failure from Wi-Fi or broker failure. Last Reading remains the original receipt time rather than advancing during an outage.
-
-The last valid payload and receipt timestamp are stored and restored across Home Assistant restarts. Connectivity remains off until a valid live message arrives. On a first installation, a retained measurement has unknown age and Last Reading remains unknown until live telemetry arrives. Low Water retains its last known state and also exposes the stale attribute. Alarm automations should check Arduino Online when deciding whether to act on a current level.
-
-The reference installation exposes this through `sensor.living_room_jojo_water_tank_refill_history`. A native Home Assistant Markdown card can render the event attribute as a Date/Time, Before, After and Added table without InfluxDB or Grafana.
-
-## Home Assistant History Strategy
-
-The reference Home Assistant installation uses native Recorder with 60-day retention. Dedicated InfluxDB and Grafana containers have therefore been retired for now. External time-series storage can be reconsidered when additional higher-volume telemetry such as EM50 energy monitoring is introduced.
-
-## Roadmap
-
-### Completed
-
-- [x] Capture Revision 6 raw MQTT firmware
-- [x] Document reference hardware and calibration values
-- [x] Add sanitized Arduino firmware and setup notes
-- [x] Build installable HACS custom integration
-- [x] Create native Home Assistant device and sensor entities
-- [x] Add UI configuration for tank capacity, height and calibration
-- [x] Add native level, available-water and water-depth calculations
-- [x] Add raw ADC, voltage, current, Wi-Fi, uptime and firmware diagnostics
-- [x] Add configurable refill detection and timeout
-- [x] Add persistent last-refill information
-- [x] Add 60-day structured refill-event history
-- [x] Calculate refill from start-to-end volume instead of summing intermediate rises
-- [x] Add refill-history sensor and dashboard table design
-- [x] Promote beta refill filtering to main with regression coverage
-- [x] Share validated calculations across sensors, alarms and refill detection
-- [x] Fix refill clearing and Last Reading timestamps
-- [x] Configure Home Assistant Recorder for 60-day history
-- [x] Retire InfluxDB/Grafana from the current reference design
-- [x] Add configurable Low Water Level and binary sensor with hysteresis
-- [x] Add independent Estimation Reserve Level
-- [x] Add low-water notification and warning-light automations
-- [x] Remove obsolete legacy YAML/template entities
-- [x] Add local integration branding/icon
-- [x] Add MIT open-source license and project disclaimer
-- [x] Protect the default GitHub branch against deletion
-- [x] Protect the default GitHub branch against force pushes
-- [x] Verify authorised repository updates still work after enabling branch rules
-
-### Current validation
-
-- [ ] Validate the new start/end/net refill calculation during the next real tank refill
-- [ ] Confirm a completed refill creates one correct history row after the 15-minute timeout
-- [ ] Verify refill history survives a Home Assistant restart after a real event is stored
-- [ ] Continue real-world validation of Low Water threshold/hysteresis behaviour
-- [x] Verify setup, MQTT dispatch, expiry, recovery, settings, weather fallback and reload in a real HA test runtime
-- [x] Upload firmware 6.1.0 and confirm live telemetry in the reference installation
-
-### Before v1.0 stable
-
-- [ ] Remove obsolete Arduino MQTT Discovery publications/warnings if any remain
-- [ ] Add/complete wiring documentation and diagram
-- [ ] Complete clean-install, calibration and troubleshooting documentation
-- [ ] Perform a clean HACS installation test on a fresh Home Assistant setup
-- [ ] Publish v1.0.0 stable release
-
-### Future development
-
-- [ ] Water Used Today / Yesterday
-- [ ] 7-day average daily water usage
-- [ ] Estimated Days Remaining using Estimation Reserve Level
-- [ ] Daily/weekly/monthly water-consumption reporting
-- [ ] Leak or abnormal-consumption detection
-- [ ] Additional notifications/automation examples
-- [ ] Multiple-tank support
-- [ ] Reconsider InfluxDB/Grafana if future telemetry justifies it
+The Arduino firmware is deliberately treated as a related but separate component. Integration v1.0.0 retains firmware 6.1.0 as the validated production firmware; later firmware revisions must complete their own physical validation before promotion.
 
 ## Development checks
 
-Run deterministic regressions and syntax checks from the repository root:
+From the repository root:
 
 ```bash
 python -m unittest discover -s tests -v
 python -m compileall -q custom_components tests tools ha_tests
 ```
 
-Real Home Assistant tests use the pinned compatibility baseline in `requirements-test-ha.txt` with Python 3.13:
+Home Assistant runtime tests use the pinned compatibility baseline in `requirements-test-ha.txt`. GitHub Actions runs the regression suite and firmware compilation checks. The optional `tools/mqtt_simulator.py` publishes only to a `jojo_test/` namespace and is used for isolated clean-install acceptance testing.
 
-```bash
-python3.13 -m venv .venv
-.venv/bin/python -m pip install -r requirements-test-ha.txt
-.venv/bin/python -m pytest ha_tests -q
-```
+## Security and repository governance
 
-MQTT transport is mocked; entities, callbacks and storage run in Home Assistant. The baseline does not establish compatibility with every HA version. GitHub Actions also compiles the UNO R4 WiFi firmware with the dependency versions listed in the firmware guide.
-
-The optional history replay tool accepts Home Assistant `entity_id,state,last_changed` CSV exports:
-
-```bash
-python tools/replay_history.py /path/to/history.csv --threshold 75
-```
-
-Replay reconstructs sparse states and cannot verify actual refill quantities or recover omitted MQTT metadata. Match its reference calibration to your installation before interpreting results.
-
-## Security and Repository Governance
-
-Never commit Wi-Fi passwords, MQTT passwords, Home Assistant tokens, API keys or other credentials.
-
-The repository is public for reading, reuse and forks. Public visibility does not grant direct write access to the original repository. The default branch is protected against deletion and force pushes. Normal updates remain available to explicitly authorised repository identities/connections, allowing the project's controlled maintenance workflow to continue.
-
-External contributors should work through forks and pull requests rather than being granted direct write access unless explicitly authorised by the repository owner.
+Never commit Wi-Fi passwords, MQTT passwords, Home Assistant tokens, API keys or other credentials. The public repository is readable and forkable; changes to the original project are maintained through the protected default branch and controlled pull-request workflow.
 
 ## License
 
-This project is licensed under the MIT License. See `LICENSE` for the full license text.
+This project is licensed under the MIT License. See `LICENSE`.
 
 Copyright (c) 2026 dmseclab
